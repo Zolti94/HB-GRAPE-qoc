@@ -1,0 +1,16 @@
+# Ignore Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignore Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Ignore output / results (large or regenerable)
+outputs/
+results/
+figures/
+
+# Ignore temporary logs
+*.log
+*.tmp
