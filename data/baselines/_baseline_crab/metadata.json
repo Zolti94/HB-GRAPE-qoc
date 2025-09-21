@@ -1,5 +1,5 @@
 {
-  "saved_at": "2025-09-21 15:18:39",
+  "saved_at": "2025-09-21 18:00:13",
   "units_stored": {
     "time": "us",
     "amplitude": "rad/us"
@@ -10,11 +10,11 @@
     "T_us": 0.1,
     "omega_fluence": 1975.4546317282263,
     "delta_fluence": 1359.3832321245984,
-    "num_modes_omega": 3,
-    "num_modes_delta": 3
+    "num_modes_omega": 4,
+    "num_modes_delta": 4
   },
   "penalties": {
-    "power_weight": 5e-05,
+    "power_weight": 0.0001,
     "neg_weight": 1.0,
     "neg_kappa": 1.0
   },
