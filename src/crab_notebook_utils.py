@@ -6,6 +6,8 @@ from typing import Any, Dict, Mapping
 
 import numpy as np
 
+from src.qoc_common import penalty_terms
+
 I2 = np.eye(2, dtype=np.complex128)
 SIGMA_X = np.array([[0.0, 1.0], [1.0, 0.0]], dtype=np.complex128)
 SIGMA_Y = np.array([[0.0, -1.0j], [1.0j, 0.0]], dtype=np.complex128)
@@ -60,36 +62,6 @@ def assert_finite(name: str, array: np.ndarray) -> None:
     arr = np.asarray(array)
     if not np.all(np.isfinite(arr)):
         raise ValueError(f"{name} contains non-finite values")
-
-def penalty_terms(
-    omega: np.ndarray,
-    dt: float,
-    *,
-    power_weight: float = 0.0,
-    neg_weight: float = 0.0,
-    neg_kappa: float = 10.0,
-) -> tuple[float, float, np.ndarray]:
-    """Return (power_penalty, neg_penalty, grad_omega) for CRAB controls."""
-    omega = np.asarray(omega, dtype=float)
-    dt = float(dt)
-    grad = np.zeros_like(omega, dtype=float)
-
-    power_penalty = 0.0
-    if power_weight != 0.0:
-        power_penalty = 0.5 * float(power_weight) * float(np.sum(omega * omega) * dt)
-        grad += float(power_weight) * omega * dt
-
-    neg_penalty = 0.0
-    if neg_weight != 0.0:
-        k = float(neg_kappa)
-        if k <= 0.0:
-            raise ValueError("neg_kappa must be positive.")
-        neg = np.logaddexp(0.0, -k * omega) / k
-        neg_penalty = 0.5 * float(neg_weight) * float(np.sum(neg * neg) * dt)
-        sigmoid = 0.5 * (np.tanh(-0.5 * k * omega) + 1.0)
-        grad += -(float(neg_weight) * neg * sigmoid) * dt
-
-    return power_penalty, neg_penalty, grad
 
 def ground_state_projectors(omega: np.ndarray, delta: np.ndarray) -> np.ndarray:
     """Compute instantaneous ground-state projectors for the two-level Hamiltonian."""

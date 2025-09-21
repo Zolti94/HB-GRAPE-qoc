@@ -12,13 +12,16 @@ from typing import Any, Dict, Tuple
 
 import numpy as np
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_CRAB_BASELINE_DIR = PROJECT_ROOT / 'data' / 'baselines' / '_baseline_crab'
+
 from src.qoc_common import (
     terminal_cost,
     terminal_cost_and_grad,
 )
 
 
-def load_baseline_crab(base_dir: str | Path = "outputs/_baseline_crab") -> Tuple[Dict[str, Any], Dict[str, Any]]:
+def load_baseline_crab(base_dir: str | Path = DEFAULT_CRAB_BASELINE_DIR) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """Load CRAB baseline arrays (controls, bases, policy metadata)."""
     base = Path(base_dir)
     with np.load(base / "arrays.npz", allow_pickle=True) as arrs_file:

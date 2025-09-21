@@ -102,6 +102,55 @@ def _consume_deprecated_pulse_kwargs(kwargs: Dict[str, Any]) -> None:
     if kwargs:
         raise TypeError(f"Unexpected keyword arguments: {tuple(sorted(kwargs))}")
 
+
+
+def _penalty_terms(
+    omega: np.ndarray,
+    dt: float,
+    *,
+    power_weight: float,
+    neg_weight: float,
+    neg_kappa: float,
+) -> tuple[float, float, np.ndarray]:
+    """Return (fluence_penalty, negativity_penalty, grad_omega)."""
+    omega = np.asarray(omega, dtype=float)
+    dt = float(dt)
+    grad = np.zeros_like(omega, dtype=float)
+    power_penalty = 0.0
+    if power_weight != 0.0:
+        power_scale = float(power_weight)
+        power_penalty = 0.5 * power_scale * float(np.sum(omega * omega, dtype=float) * dt)
+        grad += power_scale * omega * dt
+    neg_penalty = 0.0
+    if neg_weight != 0.0:
+        k = float(neg_kappa)
+        if k <= 0.0:
+            raise ValueError("neg_kappa must be positive.")
+        neg_scale = float(neg_weight)
+        neg = np.logaddexp(0.0, -k * omega) / k
+        neg_penalty = 0.5 * neg_scale * float(np.sum(neg * neg, dtype=float) * dt)
+        sigmoid = 0.5 * (np.tanh(-0.5 * k * omega) + 1.0)
+        grad += -(neg_scale * neg * sigmoid) * dt
+    return power_penalty, neg_penalty, grad
+
+
+def penalty_terms(
+    omega: np.ndarray,
+    dt: float,
+    *,
+    power_weight: float = 0.0,
+    neg_weight: float = 0.0,
+    neg_kappa: float = 10.0,
+) -> tuple[float, float, np.ndarray]:
+    """Public wrapper for shared penalty contributions."""
+    return _penalty_terms(
+        omega,
+        dt,
+        power_weight=power_weight,
+        neg_weight=neg_weight,
+        neg_kappa=neg_kappa,
+    )
+
 def terminal_cost(
     Omega: np.ndarray,
     Delta: np.ndarray,
@@ -122,16 +171,14 @@ def terminal_cost(
     dt = float(np.asarray(dt, dtype=float))
     rhos = forward_rhos(Omega, Delta, rho0, dt)
     cost = 1.0 - float(np.real(np.trace(rhos[-1] @ target)))
-    if power_weight > 0.0:
-        fluence = float(np.sum(Omega * Omega, dtype=float) * dt)
-        cost += 0.5 * power_weight * fluence
-    if neg_weight > 0.0:
-        k = float(neg_kappa)
-        if k <= 0.0:
-            raise ValueError("neg_kappa must be positive.")
-        neg = np.logaddexp(0.0, -k * Omega) / k  # softplus(-Omega)
-        cost += 0.5 * neg_weight * float(np.sum(neg * neg, dtype=float) * dt)
-    return cost
+    power_penalty, neg_penalty, _ = _penalty_terms(
+        Omega,
+        dt,
+        power_weight=power_weight,
+        neg_weight=neg_weight,
+        neg_kappa=neg_kappa,
+    )
+    return cost + power_penalty + neg_penalty
 
 def terminal_cost_and_grad(
     Omega: np.ndarray,
@@ -168,18 +215,15 @@ def terminal_cost_and_grad(
         lam_next = lams[k + 1]
         gO[k] = -np.imag(np.trace(lam_next @ (dHx @ rho_k - rho_k @ dHx))) * dt
         gD[k] = -np.imag(np.trace(lam_next @ (dHz @ rho_k - rho_k @ dHz))) * dt
-    if power_weight > 0.0:
-        fluence = float(np.sum(Omega * Omega, dtype=float) * dt)
-        cost += 0.5 * power_weight * fluence
-        gO += power_weight * Omega * dt
-    if neg_weight > 0.0:
-        k = float(neg_kappa)
-        if k <= 0.0:
-            raise ValueError("neg_kappa must be positive.")
-        neg = np.logaddexp(0.0, -k * Omega) / k
-        sigmoid = 0.5 * (np.tanh(-0.5 * k * Omega) + 1.0)  # sigmoid(-k * Omega)
-        cost += 0.5 * neg_weight * float(np.sum(neg * neg, dtype=float) * dt)
-        gO += -(neg_weight * neg * sigmoid) * dt
+    power_penalty, neg_penalty, penalty_grad = _penalty_terms(
+        Omega,
+        dt,
+        power_weight=power_weight,
+        neg_weight=neg_weight,
+        neg_kappa=neg_kappa,
+    )
+    cost += power_penalty + neg_penalty
+    gO += penalty_grad
     return cost, gO, gD
 
 # ---------- Constraints ----------
@@ -242,6 +286,7 @@ __all__ = [
     "adjoint_lams",
     "terminal_cost",
     "terminal_cost_and_grad",
+    "penalty_terms",
     "apply_bounds",
     "radps_to_MHz",
     "quick_plot",

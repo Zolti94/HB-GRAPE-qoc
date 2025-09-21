@@ -1,0 +1,23 @@
+{
+  "saved_at": "2025-09-21 15:18:39",
+  "units_stored": {
+    "time": "us",
+    "amplitude": "rad/us"
+  },
+  "summary": {
+    "Nt": 201,
+    "dt_ns": 0.5,
+    "T_us": 0.1,
+    "omega_fluence": 1975.4546317282263,
+    "delta_fluence": 1359.3832321245984,
+    "num_modes_omega": 3,
+    "num_modes_delta": 3
+  },
+  "penalties": {
+    "power_weight": 5e-05,
+    "neg_weight": 1.0,
+    "neg_kappa": 1.0
+  },
+  "seed": 42,
+  "note": "CRAB baseline with sine basis (zero endpoints); arrays saved in SI units."
+}

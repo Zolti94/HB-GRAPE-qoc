@@ -10,9 +10,20 @@ sys.path.insert(0, str(CRAB_DIR))
 
 import numpy as np
 
-from src.qoc_common import terminal_cost, terminal_cost_and_grad
-from src.qoc_common_crab import build_crab_bases, terminal_cost_and_grad_crab
+from src.qoc_common import penalty_terms, terminal_cost, terminal_cost_and_grad
+from src.qoc_common_crab import (
+    DEFAULT_CRAB_BASELINE_DIR,
+    build_crab_bases,
+    load_baseline_crab,
+    terminal_cost_and_grad_crab,
+)
 
+
+BASELINE_DIR = DEFAULT_CRAB_BASELINE_DIR
+
+def load_crab_baseline() -> tuple[dict[str, object], dict[str, object]]:
+    arrays, policy = load_baseline_crab(BASELINE_DIR)
+    return arrays, policy
 
 def test_terminal_grad_fd() -> None:
     rng = np.random.default_rng(123)
@@ -134,6 +145,37 @@ def test_crab_projection_gradients() -> None:
     assert np.allclose(gO_coeff, proj_Omega, atol=1e-12)
     assert np.allclose(gD_coeff, proj_Delta, atol=1e-12)
 
+
+def test_penalty_helper_consistency() -> None:
+    rng = np.random.default_rng(321)
+    Nt = 48
+    T = 0.02
+    t = np.linspace(0.0, T, Nt)
+    dt = float(t[1] - t[0])
+    Omega = rng.normal(size=Nt)
+    Delta = rng.normal(size=Nt)
+    rho0 = np.array([[1, 0], [0, 0]], dtype=np.complex128)
+    target = np.array([[0, 0], [0, 1]], dtype=np.complex128)
+    weights = {"power_weight": 1e-3, "neg_weight": 2e-3, "neg_kappa": 7.5}
+    cost_plain, gO_plain, _ = terminal_cost_and_grad(
+        Omega,
+        Delta,
+        rho0,
+        dt,
+        target,
+    )
+    cost_pen, gO_pen, _ = terminal_cost_and_grad(
+        Omega,
+        Delta,
+        rho0,
+        dt,
+        target,
+        **weights,
+    )
+    power_penalty, neg_penalty, grad_penalty = penalty_terms(Omega, dt, **weights)
+    assert np.isclose(cost_pen - cost_plain, power_penalty + neg_penalty)
+    assert np.allclose(gO_pen - gO_plain, grad_penalty)
+
 def test_negativity_penalty_behavior() -> None:
     Nt = 32
     dt = 0.05
@@ -183,29 +225,32 @@ def test_negativity_penalty_behavior() -> None:
 
 def test_no_legacy_update_symbols() -> None:
     banned = ("lowpass_update", "apply_shared_update", "pin_endpoints", "cutoff_MHz")
-    root = Path("crab")
+    search_roots = (Path("src"), Path("notebooks"))
     this_file = Path(__file__).resolve()
-    for path in root.rglob("*"):
-        if path.is_file() and path.suffix in {".py", ".ipynb"}:
-            if path.resolve() == this_file:
+    for root in search_roots:
+        if not root.exists():
+            continue
+        for candidate in root.rglob('*'):
+            if candidate.resolve() == this_file:
                 continue
-            text = path.read_text(encoding="utf-8", errors="ignore")
+            if not candidate.is_file() or candidate.suffix not in {'.py', '.ipynb'}:
+                continue
+            text = candidate.read_text(encoding="utf-8", errors="ignore")
             for token in banned:
-                assert token not in text, f"Found legacy token '{token}' in {path}"
+                assert token not in text, f"Found legacy token '{token}' in {candidate}"
 
 
 def test_baseline_grid_consistency() -> None:
-    base_dir = Path("crab/outputs/_baseline_crab")
-    with np.load(base_dir / "arrays.npz", allow_pickle=True) as data:
-        t = data["t"]
-        dt = float(data["dt"])
-        T = float(data["T"])
-        Omega0 = data["Omega0"]
-        Delta0 = data["Delta0"]
-        basis_omega = data["CRAB_BASIS_OMEGA"]
-        basis_delta = data["CRAB_BASIS_DELTA"]
-        modes_omega = data["CRAB_MODES_OMEGA"]
-        modes_delta = data["CRAB_MODES_DELTA"]
+    arrays, _ = load_crab_baseline()
+    t = arrays["t"]
+    dt = float(arrays["dt"])
+    T = float(arrays["T"])
+    Omega0 = arrays["Omega0"]
+    Delta0 = arrays["Delta0"]
+    basis_omega = arrays["CRAB_BASIS_OMEGA"]
+    basis_delta = arrays["CRAB_BASIS_DELTA"]
+    modes_omega = arrays["CRAB_MODES_OMEGA"]
+    modes_delta = arrays["CRAB_MODES_DELTA"]
     Nt = t.shape[0]
     assert Omega0.shape[0] == Nt == basis_omega.shape[0] == basis_delta.shape[0]
     assert np.isclose(dt * (Nt - 1), T) or np.isclose(t[-1], T)
