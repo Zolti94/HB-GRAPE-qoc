@@ -10,8 +10,8 @@ sys.path.insert(0, str(CRAB_DIR))
 
 import numpy as np
 
-from qoc_common import terminal_cost, terminal_cost_and_grad
-from qoc_common_crab import build_crab_bases, terminal_cost_and_grad_crab
+from src.qoc_common import terminal_cost, terminal_cost_and_grad
+from src.qoc_common_crab import build_crab_bases, terminal_cost_and_grad_crab
 
 
 def test_terminal_grad_fd() -> None:

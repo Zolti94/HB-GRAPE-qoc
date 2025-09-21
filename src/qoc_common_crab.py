@@ -1,4 +1,4 @@
-﻿"""
+"""
 qoc_common_crab.py - Utilities for CRAB-parameterized controls with gradient-based optimizers.
 This module mirrors the shared physics helpers from qoc_common.py but exposes
 helpers to assemble controls from sine bases, enforce grid consistency, and
@@ -12,7 +12,7 @@ from typing import Any, Dict, Tuple
 
 import numpy as np
 
-from qoc_common import (
+from src.qoc_common import (
     terminal_cost,
     terminal_cost_and_grad,
 )

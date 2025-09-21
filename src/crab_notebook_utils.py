@@ -1,4 +1,4 @@
-﻿"""Utility helpers shared by CRAB notebooks."""
+"""Utility helpers shared by CRAB notebooks."""
 from __future__ import annotations
 
 from pathlib import Path

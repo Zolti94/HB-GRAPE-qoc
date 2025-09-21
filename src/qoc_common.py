@@ -1,4 +1,4 @@
-﻿"""
+"""
 qoc_common.py - Shared utilities for GRAPE/CRAB notebooks.
 - Baseline loading (arrays + policy)
 - Physics: SU(2) step, forward/adjoint propagation
