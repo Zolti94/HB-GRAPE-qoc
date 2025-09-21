@@ -1,0 +1,110 @@
+"""Experiment configuration models defined in microseconds and megahertz."""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Mapping, MutableMapping
+
+__all__ = [
+    "BaselineSpec",
+    "PenaltyConfig",
+    "ExperimentConfig",
+]
+
+
+@dataclass(slots=True)
+class BaselineSpec:
+    """Identify baseline assets stored in microseconds (us) and megahertz (MHz)."""
+
+    name: str = "default"
+    path: Path | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"name": self.name, "path": str(self.path) if self.path is not None else None}
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any] | None) -> "BaselineSpec":
+        if not payload:
+            return cls()
+        name = str(payload.get("name", "default"))
+        raw_path = payload.get("path")
+        path = Path(raw_path) if raw_path else None
+        return cls(name=name, path=path)
+
+
+@dataclass(slots=True)
+class PenaltyConfig:
+    """Weights for optimizer penalties in MHz^2*us units."""
+
+    power_weight: float = 0.0
+    neg_weight: float = 0.0
+    neg_kappa: float = 10.0
+
+    def to_dict(self) -> dict[str, float]:
+        return {
+            "power_weight": float(self.power_weight),
+            "neg_weight": float(self.neg_weight),
+            "neg_kappa": float(self.neg_kappa),
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any] | None) -> "PenaltyConfig":
+        if not payload:
+            return cls()
+        return cls(
+            power_weight=float(payload.get("power_weight", 0.0)),
+            neg_weight=float(payload.get("neg_weight", 0.0)),
+            neg_kappa=float(payload.get("neg_kappa", 10.0)),
+        )
+
+
+@dataclass(slots=True)
+class ExperimentConfig:
+    """Container for experiment inputs expressed in microseconds and megahertz."""
+
+    baseline: BaselineSpec = field(default_factory=BaselineSpec)
+    run_name: str | None = None
+    artifacts_root: Path | None = None
+    random_seed: int | None = None
+    optimizer_options: dict[str, Any] = field(default_factory=dict)
+    penalties: PenaltyConfig = field(default_factory=PenaltyConfig)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    notes: str | None = None
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "ExperimentConfig":
+        baseline = BaselineSpec.from_dict(payload.get("baseline"))
+        penalties = PenaltyConfig.from_dict(payload.get("penalties"))
+        metadata = dict(payload.get("metadata", {}))
+        return cls(
+            baseline=baseline,
+            run_name=payload.get("run_name"),
+            artifacts_root=Path(payload["artifacts_root"]) if payload.get("artifacts_root") else None,
+            random_seed=payload.get("random_seed"),
+            optimizer_options=dict(payload.get("optimizer_options", {})),
+            penalties=penalties,
+            metadata=metadata,
+            notes=payload.get("notes"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        data: dict[str, Any] = {
+            "baseline": self.baseline.to_dict(),
+            "run_name": self.run_name,
+            "artifacts_root": str(self.artifacts_root) if self.artifacts_root is not None else None,
+            "random_seed": self.random_seed,
+            "optimizer_options": dict(self.optimizer_options),
+            "penalties": self.penalties.to_dict(),
+            "metadata": dict(self.metadata),
+            "notes": self.notes,
+        }
+        return data
+
+    def with_updates(self, overrides: Mapping[str, Any]) -> "ExperimentConfig":
+        payload: MutableMapping[str, Any] = self.to_dict()
+        payload.update(overrides)
+        return ExperimentConfig.from_dict(payload)
+
+    def slug(self) -> str:
+        base = self.baseline.name if self.baseline.name else "run"
+        return (self.run_name or base).replace(" ", "-").lower()
