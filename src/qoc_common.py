@@ -35,7 +35,7 @@ def load_baseline(base_dir: str | Path = "outputs/_baseline") -> Tuple[Dict[str,
     arrays["Omega0"] = arrays["Omega0"].astype(float)
     arrays["Delta0"] = arrays["Delta0"].astype(float)
     mask = arrays.get("MASK")
-    arrays["MASK"] = np.asarray(mask, dtype=float) if mask is not None else None
+    arrays["MASK"] = np.asarray(mask, dtype=float) if mask is not None else np.empty(0, dtype=float)
     arrays["rho0"] = arrays["rho0"].astype(np.complex128)
     arrays["target"] = arrays["target"].astype(np.complex128)
     arrays["Nt"] = np.asarray(arrays["Nt"]).astype(int)
