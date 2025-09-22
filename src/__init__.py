@@ -1,6 +1,6 @@
 """Public API for GRAPE/CRAB workflows using microseconds and megahertz."""
 
-from .config import BaselineSpec, ExperimentConfig, PenaltyConfig
+from .config import BaselineSpec, ExperimentConfig, PenaltyConfig, override_from_dict
 from .result import Result
 from .workflows import available_optimizers, register_optimizer, run_experiment
 from .physics import (
@@ -30,12 +30,20 @@ from .controls import (
     grad_control_wrt_coeffs,
     ensure_time_grid_match,
 )
+from .plotting import (
+    plot_cost_history,
+    plot_pulses,
+    plot_summary,
+    plot_penalties_history,
+    plot_robustness_heatmap,
+)
 from .utils import ensure_dir, json_ready, require_real_finite, set_random_seed, time_block
 
 __all__ = [
     "BaselineSpec",
     "ExperimentConfig",
     "PenaltyConfig",
+    "override_from_dict",
     "Result",
     "run_experiment",
     "register_optimizer",
@@ -61,6 +69,11 @@ __all__ = [
     "coeffs_to_control",
     "grad_control_wrt_coeffs",
     "ensure_time_grid_match",
+    "plot_cost_history",
+    "plot_pulses",
+    "plot_summary",
+    "plot_penalties_history",
+    "plot_robustness_heatmap",
     "ensure_dir",
     "json_ready",
     "require_real_finite",

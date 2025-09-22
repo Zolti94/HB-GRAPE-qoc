@@ -1,0 +1,306 @@
+﻿"""Plotting utilities for GRAPE/CRAB workflows in us and rad/us units."""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterable, Mapping, Sequence
+
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.axes import Axes
+from matplotlib.colors import LogNorm
+
+from .physics import fidelity_pure, propagate_piecewise_const
+from .result import Result
+
+__all__ = [
+    "plot_cost_history",
+    "plot_pulses",
+    "plot_summary",
+    "plot_penalties_history",
+    "plot_robustness_heatmap",
+]
+
+_TWO_PI = 2.0 * np.pi
+
+
+def _ensure_figures_dir(result: Result) -> Path:
+    figures_dir = Path(result.artifacts_dir) / "figures"
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    return figures_dir
+
+
+def _save_figure(fig: plt.Figure, directory: Path, stem: str, save_svg: bool = False) -> None:
+    directory.mkdir(parents=True, exist_ok=True)
+    png_path = directory / f"{stem}.png"
+    fig.savefig(png_path, dpi=300, bbox_inches="tight")
+    if save_svg:
+        svg_path = directory / f"{stem}.svg"
+        fig.savefig(svg_path, bbox_inches="tight")
+
+
+def _rad_per_us_to_MHz(values: np.ndarray) -> np.ndarray:
+    return np.asarray(values, dtype=float) / _TWO_PI
+
+
+def plot_cost_history(result: Result, *, save: bool = True, ax: Axes | None = None) -> Axes:
+    """Plot total cost history on a semilogy scale."""
+
+    history = result.history
+    total = np.asarray(history.get("total"))
+    if total.size == 0:
+        raise ValueError("Result history does not contain 'total' values.")
+    iterations = np.asarray(history.get("iter"))
+    if iterations.size != total.size:
+        iterations = np.arange(1, total.size + 1)
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(6, 4))
+    else:
+        fig = ax.figure
+
+    ax.semilogy(iterations, total, label="total cost")
+    ax.set_xlabel("Iteration")
+    ax.set_ylabel("Cost (total)")
+    ax.set_title("Cost Convergence")
+    ax.grid(True, which="both", ls=":", alpha=0.6)
+    ax.legend()
+
+    if save:
+        figures_dir = _ensure_figures_dir(result)
+        _save_figure(fig, figures_dir, "cost_history")
+
+    return ax
+
+
+def plot_penalties_history(result: Result, *, save: bool = True, ax: Axes | None = None) -> Axes:
+    """Plot penalties present in the history dictionary on a log scale."""
+
+    history = result.history
+    penalty_keys = [key for key in history.keys() if key.endswith("_penalty")]
+    if not penalty_keys:
+        raise ValueError("Result history does not contain any *_penalty series.")
+
+    iterations = np.asarray(history.get("iter"))
+    first_series = np.asarray(history[penalty_keys[0]])
+    if iterations.size != first_series.size:
+        iterations = np.arange(1, first_series.size + 1)
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(6, 4))
+    else:
+        fig = ax.figure
+
+    for key in penalty_keys:
+        values = np.asarray(history[key], dtype=float)
+        positive = np.clip(values, 1e-12, None)
+        ax.semilogy(iterations, positive, label=key.replace("_", " "))
+
+    ax.set_xlabel("Iteration")
+    ax.set_ylabel("Penalty value")
+    ax.set_title("Penalty Terms")
+    ax.grid(True, which="both", ls=":", alpha=0.6)
+    ax.legend()
+
+    if save:
+        figures_dir = _ensure_figures_dir(result)
+        _save_figure(fig, figures_dir, "penalties_history")
+
+    return ax
+
+
+def plot_pulses(result: Result, *, save: bool = True, axes: Sequence[Axes] | None = None) -> Sequence[Axes]:
+    """Plot optimized control pulses alongside their baselines."""
+
+    pulses = result.pulses
+    t_us = np.asarray(pulses["t_us"], dtype=float)
+    omega = np.asarray(pulses["omega"], dtype=float)
+    omega_base = np.asarray(pulses.get("omega_base", np.zeros_like(omega)), dtype=float)
+    delta = pulses.get("delta")
+    delta_base = pulses.get("delta_base")
+
+    if axes is None:
+        fig, axes = plt.subplots(2, 1, figsize=(7, 6), sharex=True)
+    else:
+        fig = axes[0].figure
+    ax_omega, ax_delta = axes
+
+    ax_omega.plot(t_us, omega, label="Optimized O(t)")
+    ax_omega.plot(t_us, omega_base, ls="--", label="Baseline O(t)")
+    ax_omega.set_ylabel("O (rad/us)")
+    ax_omega.grid(True, ls=":", alpha=0.6)
+    ax_omega.legend()
+
+    if delta is not None:
+        ax_delta.plot(t_us, delta, label="Optimized ?(t)")
+        if delta_base is not None:
+            ax_delta.plot(t_us, np.asarray(delta_base, dtype=float), ls="--", label="Baseline ?(t)")
+        ax_delta.legend()
+    ax_delta.set_xlabel("Time (us)")
+    ax_delta.set_ylabel("? (rad/us)")
+    ax_delta.grid(True, ls=":", alpha=0.6)
+
+    fig.tight_layout()
+
+    if save:
+        figures_dir = _ensure_figures_dir(result)
+        _save_figure(fig, figures_dir, "pulses")
+
+    return axes
+
+
+def plot_summary(result: Result, *, save: bool = True, ax: Axes | None = None) -> Axes:
+    """Render a summary table of final metrics."""
+
+    metrics = result.final_metrics
+    rows = [
+        ("terminal", metrics.get("terminal")),
+        ("path", metrics.get("path")),
+        ("ensemble", metrics.get("ensemble")),
+        ("power_penalty", metrics.get("power_penalty")),
+        ("neg_penalty", metrics.get("neg_penalty")),
+        ("total", metrics.get("total")),
+        ("runtime_s", metrics.get("runtime_s")),
+    ]
+
+    display_rows = [(name, None if value is None else f"{value:.6g}") for name, value in rows if value is not None]
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(5, 2.5))
+    else:
+        fig = ax.figure
+
+    ax.axis("off")
+    table = ax.table(
+        cellText=[[name, val] for name, val in display_rows],
+        colLabels=["Metric", "Value"],
+        loc="center",
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1.2, 1.2)
+    ax.set_title("Results Summary")
+
+    if save:
+        figures_dir = _ensure_figures_dir(result)
+        _save_figure(fig, figures_dir, "summary")
+
+    return ax
+
+
+def plot_robustness_heatmap(
+    pulse: Mapping[str, np.ndarray],
+    t_us: np.ndarray,
+    delta_base: np.ndarray,
+    detuning_MHz_grid: np.ndarray,
+    area_pi_grid: np.ndarray,
+    label: str,
+    *,
+    psi0: np.ndarray,
+    target: np.ndarray,
+    save_dir: Path,
+    save: bool = True,
+    log: bool = True,
+    vmin: float | None = None,
+    vmax: float | None = None,
+) -> tuple[Axes, np.ndarray]:
+    """Generate a robustness heatmap over detuning offsets and pulse areas.
+
+    Parameters
+    ----------
+    pulse:
+        Mapping containing at least the key ``"omega"`` (rad/us) and optionally ``"delta"``.
+    t_us:
+        Time grid in microseconds.
+    delta_base:
+        Baseline detuning profile (rad/us) to which detuning offsets are added.
+    detuning_MHz_grid:
+        1-D array of detuning offsets in MHz.
+    area_pi_grid:
+        1-D array of pulse area scaling factors in p units.
+    label:
+        Label used in filenames.
+    psi0, target:
+        Initial and target state vectors (complex128).
+    save_dir:
+        Directory where figures and npz dump will be written.
+    save:
+        Whether to save outputs.
+    log:
+        If True, color scale uses log10 of the infidelity.
+    vmin, vmax:
+        Optional bounds for color normalization.
+    """
+
+    save_dir = Path(save_dir)
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    omega = np.asarray(pulse["omega"], dtype=float)
+    delta = np.asarray(pulse.get("delta", delta_base), dtype=float)
+    t_us = np.asarray(t_us, dtype=float)
+    delta_base = np.asarray(delta_base, dtype=float)
+    detuning_MHz_grid = np.asarray(detuning_MHz_grid, dtype=float)
+    area_pi_grid = np.asarray(area_pi_grid, dtype=float)
+
+    if omega.shape != t_us.shape:
+        raise ValueError("Omega pulse must share the same shape as the time grid.")
+    if delta.shape != t_us.shape:
+        raise ValueError("Delta pulse must share the same shape as the time grid.")
+
+    dt_us = float(np.diff(t_us).mean())
+    base_area_pi = np.trapz(np.abs(omega), t_us) / np.pi
+    if base_area_pi <= 0.0:
+        raise ValueError("Baseline pulse area must be positive.")
+
+    psi0 = np.asarray(psi0, dtype=np.complex128)
+    target = np.asarray(target, dtype=np.complex128)
+
+    detuning_offsets = detuning_MHz_grid * _TWO_PI
+
+    area_count = area_pi_grid.size
+    detuning_count = detuning_MHz_grid.size
+    infidelity = np.empty((area_count, detuning_count), dtype=float)
+
+    omega_norm = omega / base_area_pi
+
+    for i, area_scale in enumerate(area_pi_grid):
+        omega_scaled = area_scale * omega_norm
+        for j, detuning in enumerate(detuning_offsets):
+            delta_shifted = delta + detuning
+            prop = propagate_piecewise_const(
+                omega_scaled,
+                delta_shifted,
+                dt_us,
+                psi0=psi0,
+            )
+            psi_T = prop["psi_T"]
+            fidelity = fidelity_pure(psi_T, target)
+            infidelity[i, j] = max(1.0 - fidelity, 0.0)
+
+    X, Y = np.meshgrid(detuning_MHz_grid, area_pi_grid)
+
+    if vmin is None:
+        vmin = infidelity[infidelity > 0.0].min(initial=1e-6)
+    if vmax is None:
+        vmax = infidelity.max(initial=1.0)
+
+    norm = LogNorm(vmin=max(vmin, 1e-8), vmax=max(vmax, 1e-6)) if log else None
+
+    fig, ax = plt.subplots(figsize=(6, 5))
+    c = ax.pcolormesh(X, Y, infidelity, shading="auto", cmap="viridis", norm=norm)
+    ax.set_xlabel("Detuning offset ?0 (MHz)")
+    ax.set_ylabel("Pulse area (p units)")
+    ax.set_title(f"Terminal Infidelity — {label}")
+    cb = fig.colorbar(c, ax=ax)
+    cb.set_label("Terminal infidelity")
+
+    if save:
+        _save_figure(fig, save_dir, f"heatmap_terminal_vs_detuning_area_{label}", save_svg=True)
+        np.savez(
+            save_dir / f"robustness_terminal_vs_detuning_area_{label}.npz",
+            detuning_MHz=detuning_MHz_grid,
+            area_pi=area_pi_grid,
+            infidelity=infidelity,
+        )
+
+    return ax, infidelity

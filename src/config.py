@@ -9,8 +9,8 @@ __all__ = [
     "BaselineSpec",
     "PenaltyConfig",
     "ExperimentConfig",
+    "override_from_dict",
 ]
-
 
 @dataclass(slots=True)
 class BaselineSpec:
@@ -108,3 +108,22 @@ class ExperimentConfig:
     def slug(self) -> str:
         base = self.baseline.name if self.baseline.name else "run"
         return (self.run_name or base).replace(" ", "-").lower()
+
+def _coerce_to_config(config: ExperimentConfig | Mapping[str, Any]) -> ExperimentConfig:
+    """Return an ExperimentConfig from either an existing config or mapping."""
+
+    if isinstance(config, ExperimentConfig):
+        return config
+    if isinstance(config, Mapping):
+        return ExperimentConfig.from_dict(config)
+    raise TypeError("Expected ExperimentConfig or mapping overrides.")
+
+
+def override_from_dict(
+    config: ExperimentConfig | Mapping[str, Any],
+    overrides: Mapping[str, Any],
+) -> ExperimentConfig:
+    """Create a new ExperimentConfig with fields updated from ``overrides``."""
+
+    base = _coerce_to_config(config)
+    return base.with_updates(overrides)

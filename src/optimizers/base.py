@@ -9,7 +9,7 @@ import numpy as np
 import numpy.typing as npt
 
 from ..config import ExperimentConfig, PenaltyConfig
-from ..controls import coeffs_to_control
+from ..controls import coeffs_to_control, crab_linear_basis
 from ..cost import accumulate_cost_and_grads
 
 NDArrayFloat = npt.NDArray[np.float64]
@@ -270,11 +270,46 @@ def load_crab_problem(config: ExperimentConfig) -> tuple[CrabProblem, NDArrayFlo
     psi0 = _rho_to_state(arrays.get("rho0", np.array([1.0, 0.0], dtype=np.complex128)))
     psi_target = _rho_to_state(arrays.get("target", np.array([0.0, 1.0], dtype=np.complex128)))
 
-    optimize_delta = bool(config.optimizer_options.get("optimize_delta", basis_delta is not None))
+    options = dict(config.optimizer_options)
+    optimize_delta = bool(options.get("optimize_delta", basis_delta is not None))
+
+    if "omegas_rad_per_us" in options:
+        omegas = np.asarray(options["omegas_rad_per_us"], dtype=np.float64)
+        if omegas.size == 0:
+            raise ValueError("omegas_rad_per_us must be non-empty when provided.")
+        phases = np.asarray(options.get("phases", np.zeros_like(omegas)), dtype=np.float64)
+        if phases.shape != omegas.shape:
+            raise ValueError("phases length must match omegas_rad_per_us length.")
+        basis_omega = crab_linear_basis(t_us, omegas.size, omegas, phases)
+    else:
+        K = int(options.get("K", basis_omega.shape[1]))
+        if K <= 0:
+            raise ValueError("K must be positive.")
+        if K < basis_omega.shape[1]:
+            basis_omega = basis_omega[:, :K]
+
+    if optimize_delta and basis_delta is not None:
+        if "delta_omegas_rad_per_us" in options:
+            delta_omegas = np.asarray(options["delta_omegas_rad_per_us"], dtype=np.float64)
+            if delta_omegas.size == 0:
+                raise ValueError("delta_omegas_rad_per_us must be non-empty when provided.")
+            delta_phases = np.asarray(options.get("delta_phases", np.zeros_like(delta_omegas)), dtype=np.float64)
+            if delta_phases.shape != delta_omegas.shape:
+                raise ValueError("delta_phases length must match delta_omegas_rad_per_us length.")
+            basis_delta = crab_linear_basis(t_us, delta_omegas.size, delta_omegas, delta_phases)
+        else:
+            K_delta = int(options.get("K_delta", basis_delta.shape[1]))
+            if K_delta <= 0:
+                raise ValueError("K_delta must be positive.")
+            if K_delta < basis_delta.shape[1]:
+                basis_delta = basis_delta[:, :K_delta]
+    else:
+        basis_delta = None
+        optimize_delta = False
 
     penalties = config.penalties
 
-    coeffs_init = np.zeros(basis_omega.shape[1] + (basis_delta.shape[1] if optimize_delta and basis_delta is not None else 0), dtype=np.float64)
+    coeffs_init = np.zeros(basis_omega.shape[1] + (basis_delta.shape[1] if basis_delta is not None else 0), dtype=np.float64)
 
     problem = CrabProblem(
         t_us=t_us,
@@ -290,6 +325,13 @@ def load_crab_problem(config: ExperimentConfig) -> tuple[CrabProblem, NDArrayFlo
         metadata=metadata,
         coeffs_init=coeffs_init,
     )
+
+    problem.metadata.update({
+        "omega_basis_shape": problem.basis_omega.shape,
+        "delta_basis_shape": None if problem.basis_delta is None else problem.basis_delta.shape,
+        "omegas_rad_per_us": options.get("omegas_rad_per_us"),
+        "delta_omegas_rad_per_us": options.get("delta_omegas_rad_per_us"),
+    })
 
     coeffs0 = _initial_coefficients(problem, config.optimizer_options)
     if coeffs0.shape[0] != problem.num_coeffs:
