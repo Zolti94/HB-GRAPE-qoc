@@ -3,11 +3,13 @@ from __future__ import annotations
 
 from typing import Callable, Dict
 
-from ..config import ExperimentConfig
-from ..artifacts import ArtifactPaths
-from ..result import Result
+import numpy as np
 
-OptimizerCallable = Callable[[ExperimentConfig, ArtifactPaths], Result]
+from ..artifacts import ArtifactPaths
+from ..config import ExperimentConfig
+from .base import CrabProblem, NDArrayFloat, OptimizationOutput
+
+OptimizerCallable = Callable[[ExperimentConfig, ArtifactPaths, CrabProblem, NDArrayFloat | None], OptimizationOutput]
 
 __all__ = [
     "OptimizerCallable",
@@ -36,3 +38,13 @@ def get_optimizer(name: str) -> OptimizerCallable:
 
 def available_optimizers() -> tuple[str, ...]:
     return tuple(sorted(_REGISTRY.keys()))
+
+
+# Register built-in optimizers.
+from .crab_adam import optimize_adam  # noqa: E402
+from .crab_const import optimize_const  # noqa: E402
+from .crab_linesearch import optimize_linesearch  # noqa: E402
+
+register_optimizer("adam", optimize_adam, overwrite=True)
+register_optimizer("const", optimize_const, overwrite=True)
+register_optimizer("linesearch", optimize_linesearch, overwrite=True)

@@ -1,13 +1,18 @@
 """Workflow orchestration for optimization experiments (us/MHz units)."""
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import Any, Mapping
 
+import numpy as np
+
 from .artifacts import default_root, format_run_name, prepare_run_directory
 from .config import ExperimentConfig
-from .result import Result
 from .optimizers import available_optimizers, get_optimizer, register_optimizer
+from .optimizers.base import OptimizationOutput, load_crab_problem
+from .result import Result
+from .utils import json_ready
 
 __all__ = ["run_experiment", "register_optimizer", "available_optimizers"]
 
@@ -18,6 +23,62 @@ def _coerce_config(config: ExperimentConfig | Mapping[str, Any]) -> ExperimentCo
     if isinstance(config, Mapping):
         return ExperimentConfig.from_dict(config)
     raise TypeError("config must be ExperimentConfig or mapping")
+
+
+def _write_json(path, payload) -> None:
+    path.write_text(json.dumps(json_ready(payload), indent=2), encoding="utf-8")
+
+
+def _write_history(path, history: Mapping[str, np.ndarray]) -> None:
+    np.savez(path, **{k: np.asarray(v) for k, v in history.items()})
+
+
+def _write_pulses(path, problem, outcome: OptimizationOutput) -> None:
+    data = {
+        "t_us": problem.t_us,
+        "omega": outcome.omega,
+        "omega_base": problem.omega_base,
+        "basis_omega": problem.basis_omega,
+        "coeffs_omega": outcome.coeffs[problem.omega_slice],
+    }
+    if outcome.delta is not None and problem.basis_delta is not None:
+        data["delta"] = outcome.delta
+        data["delta_base"] = problem.delta_base if problem.delta_base is not None else np.zeros_like(outcome.delta)
+        data["basis_delta"] = problem.basis_delta
+        data["coeffs_delta"] = outcome.coeffs[problem.delta_slice]
+    np.savez(path, **data)
+
+
+def _build_result(
+    run_name: str,
+    experiment_config: ExperimentConfig,
+    problem,
+    outcome: OptimizationOutput,
+    artifacts_dir,
+) -> Result:
+    pulses_dict = {
+        "t_us": problem.t_us,
+        "omega": outcome.omega,
+        "omega_base": problem.omega_base,
+        "delta": outcome.delta,
+        "delta_base": problem.delta_base,
+        "coeffs": outcome.coeffs,
+        "basis_meta": {
+            "omega_shape": problem.basis_omega.shape,
+            "delta_shape": None if problem.basis_delta is None else problem.basis_delta.shape,
+            "baseline_dir": problem.metadata.get("baseline_dir"),
+        },
+    }
+
+    return Result(
+        run_name=run_name,
+        artifacts_dir=artifacts_dir,
+        config=experiment_config,
+        history={k: np.asarray(v) for k, v in outcome.history.items()},
+        final_metrics=outcome.cost_terms,
+        pulses=pulses_dict,
+        optimizer_state=outcome.optimizer_state,
+    )
 
 
 def run_experiment(
@@ -50,11 +111,22 @@ def run_experiment(
         available = ", ".join(available_optimizers()) or "(none registered)"
         raise ValueError(f"Optimizer '{method_name}' not registered. Available: {available}") from exc
 
-    result = optimizer(experiment_config, paths)
-    if not isinstance(result, Result):
-        raise TypeError("Optimizer must return Result instance.")
+    problem, coeffs0, _ = load_crab_problem(experiment_config)
+    outcome = optimizer(experiment_config, paths, problem, coeffs0=coeffs0)
+    if not isinstance(outcome, OptimizationOutput):
+        raise TypeError("Optimizer must return OptimizationOutput.")
 
-    result.run_name = final_run_name
-    result.artifacts_dir = paths.run_dir
-    result.config = experiment_config
+    metrics_payload = dict(outcome.cost_terms)
+    metrics_payload["status"] = outcome.optimizer_state.get("status", "unknown")
+
+    _write_json(paths.config_json, experiment_config.to_dict())
+    _write_json(paths.metrics_json, metrics_payload)
+    _write_history(paths.history_npz, outcome.history)
+    _write_pulses(paths.pulses_npz, problem, outcome)
+    paths.log_path.write_text(
+        f"status={metrics_payload['status']} total={metrics_payload.get('total', float('nan')):.6f}\n",
+        encoding="utf-8",
+    )
+
+    result = _build_result(final_run_name, experiment_config, problem, outcome, paths.run_dir)
     return result
