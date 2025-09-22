@@ -542,16 +542,18 @@ def _evaluate_ensemble(
         neg_kappa=problem.penalties.neg_kappa,
     )
 
-    base_infidelity, _, _ = terminal_cost_and_grad(
+    # Compute base terminal infidelity (no penalties) using common accumulator
+    base_cost, _ = accumulate_cost_and_grads(
         omega,
         delta_eval,
-        problem.psi0,
         problem.dt_us,
-        problem.psi_target,
-        power_weight=0.0,
-        neg_weight=0.0,
+        psi0=problem.psi0,
+        psi_target=problem.psi_target,
+        w_power=0.0,
+        w_neg=0.0,
+        neg_epsilon=neg_epsilon,
     )
-    base_infidelity = float(base_infidelity)
+    base_infidelity = float(base_cost.get("terminal", 0.0))
 
     gO_acc = np.zeros_like(omega, dtype=np.float64)
     gD_acc = np.zeros_like(delta_eval, dtype=np.float64)
@@ -563,16 +565,20 @@ def _evaluate_ensemble(
         omega_mod = beta * omega
         for detuning in detuning_offsets:
             delta_mod = delta_eval + detuning
-            sample_infidelity, gO_time, gD_time = terminal_cost_and_grad(
+            sample_cost, sample_grad = accumulate_cost_and_grads(
                 omega_mod,
                 delta_mod,
-                problem.psi0,
                 problem.dt_us,
-                problem.psi_target,
-                power_weight=0.0,
-                neg_weight=0.0,
+                psi0=problem.psi0,
+                psi_target=problem.psi_target,
+                w_power=0.0,
+                w_neg=0.0,
+                neg_epsilon=neg_epsilon,
             )
-            inf_sum += float(sample_infidelity)
+            sample_infidelity = float(sample_cost.get("terminal", 0.0))
+            gO_time = np.asarray(sample_grad.get("dJ/dOmega", np.zeros_like(omega_mod)), dtype=np.float64)
+            gD_time = np.asarray(sample_grad.get("dJ/dDelta", np.zeros_like(delta_mod)), dtype=np.float64)
+            inf_sum += sample_infidelity
             sample_fidelity = float(np.clip(1.0 - sample_infidelity, 0.0, 1.0))
             fid_sum += sample_fidelity
             fid_sq_sum += sample_fidelity * sample_fidelity
