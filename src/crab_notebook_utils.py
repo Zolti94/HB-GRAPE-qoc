@@ -1,11 +1,11 @@
 """Utility helpers shared by CRAB notebooks."""
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, Dict, Mapping
 
 import numpy as np
 
+from .utils import ensure_dir, json_ready
 from src.qoc_common import penalty_terms
 
 I2 = np.eye(2, dtype=np.complex128)
@@ -13,58 +13,48 @@ SIGMA_X = np.array([[0.0, 1.0], [1.0, 0.0]], dtype=np.complex128)
 SIGMA_Y = np.array([[0.0, -1.0j], [1.0j, 0.0]], dtype=np.complex128)
 SIGMA_Z = np.array([[1.0, 0.0], [0.0, -1.0]], dtype=np.complex128)
 
-def ensure_dir(path: str | Path) -> Path:
-    """Ensure directory exists and return Path."""
-    path_obj = Path(path)
-    path_obj.mkdir(parents=True, exist_ok=True)
-    return path_obj
-
-def json_ready(value: Any) -> Any:
-    """Recursively convert numpy scalars/arrays for JSON serialization."""
-    if isinstance(value, (np.floating, np.integer)):
-        return value.item()
-    if isinstance(value, np.ndarray):
-        return value.tolist()
-    if isinstance(value, dict):
-        return {str(k): json_ready(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [json_ready(v) for v in value]
-    return value
 
 def collect_versions(modules: Mapping[str, Any]) -> Dict[str, str]:
     """Return module versions when available, else 'n/a'."""
+
     versions: Dict[str, str] = {}
     for name, module in modules.items():
         version = getattr(module, "__version__", None)
         versions[name] = str(version) if version is not None else "n/a"
     return versions
 
+
 def validate_time_grid(t: np.ndarray, dt: float, T: float, *, atol: float = 1e-12) -> None:
-    """Validate uniform grid consistency."""
+    """Validate uniform time grid consistency in microseconds."""
+
     t = np.asarray(t, dtype=float)
-    dt = float(dt)
-    T = float(T)
+    dt_val = float(dt)
+    T_val = float(T)
     if t.ndim != 1:
         raise ValueError("Time grid must be one-dimensional.")
     if t.size < 2:
         raise ValueError("Time grid must contain at least two samples.")
     if not np.isclose(t[0], 0.0, atol=atol):
         raise ValueError("Time grid should start at 0.")
-    expected_T = t[0] + dt * (t.size - 1)
-    if not np.isclose(expected_T, T, atol=atol, rtol=0.0):
+    expected_T = t[0] + dt_val * (t.size - 1)
+    if not np.isclose(expected_T, T_val, atol=atol, rtol=0.0):
         raise ValueError("T does not align with dt * (N-1).")
     diffs = np.diff(t)
-    if not np.allclose(diffs, dt, atol=atol, rtol=0.0):
+    if not np.allclose(diffs, dt_val, atol=atol, rtol=0.0):
         raise ValueError("Time grid spacing is inconsistent with dt.")
+
 
 def assert_finite(name: str, array: np.ndarray) -> None:
     """Raise ValueError if array contains non-finite entries."""
+
     arr = np.asarray(array)
     if not np.all(np.isfinite(arr)):
         raise ValueError(f"{name} contains non-finite values")
 
+
 def ground_state_projectors(omega: np.ndarray, delta: np.ndarray) -> np.ndarray:
     """Compute instantaneous ground-state projectors for the two-level Hamiltonian."""
+
     omega = np.asarray(omega, dtype=float)
     delta = np.asarray(delta, dtype=float)
     if omega.shape != delta.shape:
@@ -81,8 +71,10 @@ def ground_state_projectors(omega: np.ndarray, delta: np.ndarray) -> np.ndarray:
             projectors[idx] = 0.5 * (I2 - nx * SIGMA_X - nz * SIGMA_Z)
     return projectors
 
+
 def bloch_coordinates(rhos: np.ndarray) -> np.ndarray:
     """Convert density matrices to Bloch-vector coordinates."""
+
     rhos = np.asarray(rhos, dtype=np.complex128)
     if rhos.ndim == 2:
         rhos = rhos[None, ...]
@@ -93,12 +85,15 @@ def bloch_coordinates(rhos: np.ndarray) -> np.ndarray:
         coords[idx, 2] = float(np.real(rho[0, 0] - rho[1, 1]))
     return coords
 
+
 def population_excited(rhos: np.ndarray) -> np.ndarray:
     """Return excited-state population trajectory (rho_11)."""
+
     rhos = np.asarray(rhos, dtype=np.complex128)
     if rhos.ndim == 2:
         rhos = rhos[None, ...]
     return np.real(rhos[:, 1, 1])
+
 
 __all__ = [
     "I2",
