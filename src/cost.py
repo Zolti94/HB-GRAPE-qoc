@@ -19,6 +19,7 @@ __all__ = [
     "ensemble_expectation",
     "power_fluence_penalty",
     "negativity_smooth_penalty",
+    "penalty_terms",
     "total_cost",
     "grad_terminal_wrt_controls",
     "grad_power_fluence",
@@ -120,6 +121,36 @@ def negativity_smooth_penalty(
     return {"neg_penalty": penalty}
 
 
+
+def penalty_terms(
+    omega: NDArrayFloat,
+    dt_us: float,
+    *,
+    power_weight: float,
+    neg_weight: float,
+    neg_kappa: float,
+) -> tuple[float, float, NDArrayFloat]:
+    """Return penalty contributions and gradient with respect to omega."""
+
+    omega = np.asarray(omega, dtype=np.float64)
+    dt = float(dt_us)
+    grad = np.zeros_like(omega, dtype=np.float64)
+    power_penalty = 0.0
+    if power_weight != 0.0:
+        scale = float(power_weight)
+        power_penalty = 0.5 * scale * float(np.sum(omega * omega, dtype=np.float64) * dt)
+        grad += scale * omega * dt
+    neg_penalty = 0.0
+    if neg_weight != 0.0:
+        kappa = float(neg_kappa)
+        if kappa <= 0.0:
+            raise ValueError("neg_kappa must be positive.")
+        z = np.clip(omega / kappa, -60.0, 60.0)
+        soft = kappa * np.logaddexp(0.0, -z)
+        neg_penalty = float(neg_weight) * float(np.sum(soft * soft, dtype=np.float64))
+        sigma = 1.0 / (1.0 + np.exp(z))
+        grad += -2.0 * float(neg_weight) * soft * sigma
+    return power_penalty, neg_penalty, grad
 def total_cost(terms: Iterable[CostDict]) -> CostDict:
     """Combine individual term dictionaries and add a "total" entry."""
 

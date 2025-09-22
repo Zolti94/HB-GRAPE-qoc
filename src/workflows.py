@@ -70,6 +70,10 @@ def _build_result(
         },
     }
 
+    optimizer_state = dict(outcome.optimizer_state)
+    if outcome.extras:
+        optimizer_state.setdefault('extras', outcome.extras)
+
     return Result(
         run_name=run_name,
         artifacts_dir=artifacts_dir,
@@ -77,7 +81,7 @@ def _build_result(
         history={k: np.asarray(v) for k, v in outcome.history.items()},
         final_metrics=outcome.cost_terms,
         pulses=pulses_dict,
-        optimizer_state=outcome.optimizer_state,
+        optimizer_state=optimizer_state,
     )
 
 
@@ -118,6 +122,16 @@ def run_experiment(
 
     metrics_payload = dict(outcome.cost_terms)
     metrics_payload["status"] = outcome.optimizer_state.get("status", "unknown")
+    metrics_payload.setdefault('terminal', 0.0)
+    metrics_payload.setdefault('path', 0.0)
+    metrics_payload.setdefault('ensemble', 0.0)
+    metrics_payload.setdefault('power_penalty', 0.0)
+    metrics_payload.setdefault('neg_penalty', 0.0)
+    metrics_payload['objective'] = problem.objective
+    metrics_payload['terminal_infidelity'] = metrics_payload['terminal']
+    metrics_payload['path_infidelity'] = metrics_payload['path']
+    metrics_payload['ensemble_infidelity'] = metrics_payload['ensemble']
+    metrics_payload['terminal_eval'] = float(outcome.cost_terms.get('terminal_eval', metrics_payload['terminal']))
 
     _write_json(paths.config_json, experiment_config.to_dict())
     _write_json(paths.metrics_json, metrics_payload)

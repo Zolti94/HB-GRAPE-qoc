@@ -20,6 +20,31 @@ from .base import (
 )
 
 
+def _make_step_stats(
+    iteration: int,
+    cost: Dict[str, float],
+    grad_norm: float,
+    step_norm: float,
+    lr_value: float,
+    wall_time: float,
+    calls: int,
+) -> StepStats:
+    return StepStats(
+        iteration=iteration,
+        total=float(cost.get("total", 0.0)),
+        terminal=float(cost.get("terminal", 0.0)),
+        path=float(cost.get("path", 0.0)),
+        ensemble=float(cost.get("ensemble", 0.0)),
+        power_penalty=float(cost.get("power_penalty", 0.0)),
+        neg_penalty=float(cost.get("neg_penalty", 0.0)),
+        grad_norm=grad_norm,
+        step_norm=step_norm,
+        lr=lr_value,
+        wall_time_s=wall_time,
+        calls_per_iter=calls,
+    )
+
+
 def optimize_linesearch(
     config: ExperimentConfig,
     _paths: ArtifactPaths,
@@ -40,121 +65,67 @@ def optimize_linesearch(
     max_time_s = options.get("max_time_s")
 
     coeffs = (coeffs0.copy() if coeffs0 is not None else problem.coeffs_init.copy()).astype(np.float64)
+
     state = OptimizerState(coeffs=coeffs.copy(), grad=np.zeros_like(coeffs))
     start_time = time.perf_counter()
     prev_total: float | None = None
     status = "completed"
     total_backtracks = 0
 
-    for it in range(1, max_iters + 1):
+    for iteration in range(1, max_iters + 1):
         iter_start = time.perf_counter()
-        cost_dict, grad_coeffs, _ = evaluate_problem(problem, coeffs, neg_epsilon=neg_epsilon)
-        total = float(cost_dict.get("total", 0.0))
+        cost_dict, grad_coeffs, extras = evaluate_problem(problem, coeffs, neg_epsilon=neg_epsilon)
+        total_cost = float(cost_dict.get("total", 0.0))
         grad_norm = safe_norm(grad_coeffs)
+        calls = int(extras.get("oracle_calls", 1))
 
-        if not np.isfinite(total) or not np.isfinite(grad_coeffs).all():
+        if not np.isfinite(total_cost) or not np.isfinite(grad_coeffs).all():
             status = "failed_nonfinite"
-            wall = time.perf_counter() - iter_start
-            stats = StepStats(
-                iteration=it,
-                total=total,
-                terminal=float(cost_dict.get("terminal", 0.0)),
-                path=float(cost_dict.get("path", 0.0)),
-                ensemble=float(cost_dict.get("ensemble", 0.0)),
-                power_penalty=float(cost_dict.get("power_penalty", 0.0)),
-                neg_penalty=float(cost_dict.get("neg_penalty", 0.0)),
-                grad_norm=grad_norm,
-                step_norm=0.0,
-                lr=0.0,
-                wall_time_s=wall,
-                calls_per_iter=1,
-            )
+            stats = _make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls)
             state.record(stats)
             break
 
         if grad_norm <= grad_tol:
             status = "converged_grad"
-            wall = time.perf_counter() - iter_start
-            stats = StepStats(
-                iteration=it,
-                total=total,
-                terminal=float(cost_dict.get("terminal", 0.0)),
-                path=float(cost_dict.get("path", 0.0)),
-                ensemble=float(cost_dict.get("ensemble", 0.0)),
-                power_penalty=float(cost_dict.get("power_penalty", 0.0)),
-                neg_penalty=float(cost_dict.get("neg_penalty", 0.0)),
-                grad_norm=grad_norm,
-                step_norm=0.0,
-                lr=0.0,
-                wall_time_s=wall,
-                calls_per_iter=1,
-            )
+            stats = _make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls)
             state.record(stats)
             break
 
         if prev_total is not None:
-            rel_impr = abs(prev_total - total) / max(1.0, abs(prev_total))
+            rel_impr = abs(prev_total - total_cost) / max(1.0, abs(prev_total))
             if rel_impr <= rtol:
                 status = "converged_rtol"
-                wall = time.perf_counter() - iter_start
-                stats = StepStats(
-                    iteration=it,
-                    total=total,
-                    terminal=float(cost_dict.get("terminal", 0.0)),
-                    path=float(cost_dict.get("path", 0.0)),
-                    ensemble=float(cost_dict.get("ensemble", 0.0)),
-                    power_penalty=float(cost_dict.get("power_penalty", 0.0)),
-                    neg_penalty=float(cost_dict.get("neg_penalty", 0.0)),
-                    grad_norm=grad_norm,
-                    step_norm=0.0,
-                    lr=0.0,
-                    wall_time_s=wall,
-                    calls_per_iter=1,
-                )
+                stats = _make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls)
                 state.record(stats)
                 break
 
         clipped_grad = clip_gradients(grad_coeffs, max_norm=grad_clip)
         state.grad = clipped_grad
         direction = -clipped_grad
-        grad_dot_dir = -float(np.dot(clipped_grad, clipped_grad))
+        grad_dot_dir = float(np.dot(clipped_grad, direction))
         if grad_dot_dir >= 0.0:
             status = "armijo_direction"
-            wall = time.perf_counter() - iter_start
-            stats = StepStats(
-                iteration=it,
-                total=total,
-                terminal=float(cost_dict.get("terminal", 0.0)),
-                path=float(cost_dict.get("path", 0.0)),
-                ensemble=float(cost_dict.get("ensemble", 0.0)),
-                power_penalty=float(cost_dict.get("power_penalty", 0.0)),
-                neg_penalty=float(cost_dict.get("neg_penalty", 0.0)),
-                grad_norm=grad_norm,
-                step_norm=0.0,
-                lr=0.0,
-                wall_time_s=wall,
-                calls_per_iter=1,
-            )
+            stats = _make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls)
             state.record(stats)
             break
 
         alpha = alpha0
-        calls = 1
         accepted = False
+        calls_this_iter = calls
         candidate_coeffs = coeffs
         candidate_cost = cost_dict
-        candidate_grad = grad_coeffs
-        candidate_extras = None
+        candidate_extras = extras
 
         for bt in range(max_backtracks + 1):
             candidate_coeffs = coeffs + alpha * direction
             candidate_cost, candidate_grad, candidate_extras = evaluate_problem(
                 problem, candidate_coeffs, neg_epsilon=neg_epsilon
             )
-            calls += 1
+            calls_bt = int(candidate_extras.get("oracle_calls", 1))
+            calls_this_iter += calls_bt
             total_backtracks += 1 if bt > 0 else 0
             lhs = float(candidate_cost.get("total", 0.0))
-            rhs = total + sigma * alpha * grad_dot_dir
+            rhs = total_cost + sigma * alpha * grad_dot_dir
             if lhs <= rhs:
                 accepted = True
                 break
@@ -162,43 +133,15 @@ def optimize_linesearch(
 
         if not accepted:
             status = "armijo_failed"
-            wall = time.perf_counter() - iter_start
-            stats = StepStats(
-                iteration=it,
-                total=total,
-                terminal=float(cost_dict.get("terminal", 0.0)),
-                path=float(cost_dict.get("path", 0.0)),
-                ensemble=float(cost_dict.get("ensemble", 0.0)),
-                power_penalty=float(cost_dict.get("power_penalty", 0.0)),
-                neg_penalty=float(cost_dict.get("neg_penalty", 0.0)),
-                grad_norm=grad_norm,
-                step_norm=0.0,
-                lr=0.0,
-                wall_time_s=wall,
-                calls_per_iter=calls,
-            )
+            stats = _make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls_this_iter)
             state.record(stats)
             break
 
         coeffs = candidate_coeffs
         step_norm = safe_norm(alpha * direction)
-        wall = time.perf_counter() - iter_start
-        stats = StepStats(
-            iteration=it,
-            total=total,
-            terminal=float(cost_dict.get("terminal", 0.0)),
-            path=float(cost_dict.get("path", 0.0)),
-            ensemble=float(cost_dict.get("ensemble", 0.0)),
-            power_penalty=float(cost_dict.get("power_penalty", 0.0)),
-            neg_penalty=float(cost_dict.get("neg_penalty", 0.0)),
-            grad_norm=grad_norm,
-            step_norm=step_norm,
-            lr=alpha,
-            wall_time_s=wall,
-            calls_per_iter=calls,
-        )
+        stats = _make_step_stats(iteration, cost_dict, grad_norm, step_norm, alpha, time.perf_counter() - iter_start, calls_this_iter)
         state.record(stats)
-        prev_total = total
+        prev_total = float(candidate_cost.get("total", 0.0))
 
         state.runtime_s = time.perf_counter() - start_time
         if max_time_s is not None and state.runtime_s >= float(max_time_s):
@@ -212,8 +155,9 @@ def optimize_linesearch(
     state.runtime_s = time.perf_counter() - start_time
     history = history_to_arrays(state.history)
 
-    omega = extras["omega"].astype(np.float64)
-    delta = None if extras["delta"] is None else extras["delta"].astype(np.float64)
+    omega = np.asarray(extras.get("omega"), dtype=np.float64)
+    delta_arr = extras.get("delta")
+    delta = None if delta_arr is None else np.asarray(delta_arr, dtype=np.float64)
 
     cost_terms: Dict[str, float] = {
         "terminal": float(final_cost.get("terminal", 0.0)),
@@ -222,7 +166,9 @@ def optimize_linesearch(
         "power_penalty": float(final_cost.get("power_penalty", 0.0)),
         "neg_penalty": float(final_cost.get("neg_penalty", 0.0)),
         "total": float(final_cost.get("total", 0.0)),
+        "terminal_eval": float(final_cost.get("terminal_eval", final_cost.get("terminal", 0.0))),
         "runtime_s": float(state.runtime_s),
+        "total_backtracks": total_backtracks,
     }
 
     optimizer_state = {
@@ -232,6 +178,7 @@ def optimize_linesearch(
         "alpha0": alpha0,
         "beta": beta,
         "sigma": sigma,
+        "objective": extras.get("objective", problem.objective),
         "total_backtracks": total_backtracks,
     }
 
@@ -243,4 +190,5 @@ def optimize_linesearch(
         history=history,
         runtime_s=float(state.runtime_s),
         optimizer_state=optimizer_state,
+        extras=extras,
     )
