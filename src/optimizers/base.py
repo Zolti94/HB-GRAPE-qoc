@@ -11,7 +11,7 @@ import numpy.typing as npt
 
 from ..config import ExperimentConfig, PenaltyConfig
 from ..controls import coeffs_to_control, crab_linear_basis
-from ..cost import accumulate_cost_and_grads, penalty_terms, terminal_cost_and_grad
+from ..cost import accumulate_cost_and_grads, penalty_terms#
 from ..physics import propagate_piecewise_const, fidelity_pure
 from ..crab_notebook_utils import ground_state_projectors
 
@@ -447,9 +447,18 @@ def _evaluate_path(
     total_time = problem.t_total_us if problem.t_total_us > 0.0 else problem.dt_us * max(len(omega), 1)
     path_fidelity = float(np.clip((problem.dt_us / total_time) * overlaps.sum(), 0.0, 1.0))
     path_infidelity = 1.0 - path_fidelity
-
-    final_state = rho_path[-1]
-    final_fidelity = float(np.clip(np.real(np.trace(final_state @ problem.psi_target @ problem.psi_target.conj().T)), 0.0, 1.0))
+    psi_T = rho_path[-1]
+    # Support either state vector (shape (2,)) or density matrix (shape (2,2))
+    if isinstance(psi_T, np.ndarray) and psi_T.ndim == 1:
+        # ⟨ψ_target|ψ_T⟩ absolute square
+        overlap = np.vdot(problem.psi_target, psi_T)  # conj(ψ_target)^T ψ_T
+        final_fidelity = float(np.clip(np.real(overlap * overlap.conjugate()), 0.0, 1.0))
+    else:
+        # ρ_T case: Tr[ ρ_T |ψ_target⟩⟨ψ_target| ]
+        proj = np.outer(problem.psi_target, np.conjugate(problem.psi_target))
+        final_fidelity = float(np.clip(np.real(np.trace(psi_T @ proj)), 0.0, 1.0))
+    # final_state = rho_path[-1]
+    # final_fidelity = float(np.clip(np.real(np.trace(final_state @ problem.psi_target @ problem.psi_target.conj().T)), 0.0, 1.0))
     final_infidelity = 1.0 - final_fidelity
 
     pen_power, pen_neg, grad_penalty_time = penalty_terms(

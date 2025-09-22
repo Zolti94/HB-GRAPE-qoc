@@ -151,6 +151,7 @@ def penalty_terms(
         sigma = 1.0 / (1.0 + np.exp(z))
         grad += -2.0 * float(neg_weight) * soft * sigma
     return power_penalty, neg_penalty, grad
+
 def total_cost(terms: Iterable[CostDict]) -> CostDict:
     """Combine individual term dictionaries and add a "total" entry."""
 
