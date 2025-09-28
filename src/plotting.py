@@ -21,6 +21,8 @@ __all__ = [
 ]
 
 _TWO_PI = 2.0 * np.pi
+_HEATMAP_MIN_DEFAULT = 1e-3
+_HEATMAP_MAX_DEFAULT = 1.0
 
 
 def _ensure_figures_dir(result: Result) -> Path:
@@ -265,11 +267,22 @@ def plot_robustness_heatmap(
 
     finite_vals = infidelity[np.isfinite(infidelity) & (infidelity > 0.0)]
     if vmin is None:
-        vmin = float(finite_vals.min(initial=1e-8))
-    if vmax is None:
-        vmax = float(finite_vals.max(initial=1.0))
+        lower_bound = max(float(finite_vals.min(initial=_HEATMAP_MIN_DEFAULT)), _HEATMAP_MIN_DEFAULT)
+    else:
+        lower_bound = float(vmin)
+    if not np.isfinite(lower_bound) or lower_bound <= 0.0:
+        lower_bound = _HEATMAP_MIN_DEFAULT
 
-    norm = LogNorm(vmin=max(vmin, 1e-8), vmax=max(vmax, 1e-6)) if log else None
+    if vmax is None:
+        upper_bound = max(float(finite_vals.max(initial=_HEATMAP_MAX_DEFAULT)), _HEATMAP_MAX_DEFAULT)
+    else:
+        upper_bound = float(vmax)
+    if not np.isfinite(upper_bound) or upper_bound <= 0.0:
+        upper_bound = _HEATMAP_MAX_DEFAULT
+    if upper_bound <= lower_bound:
+        upper_bound = max(lower_bound * 10.0, _HEATMAP_MAX_DEFAULT)
+
+    norm = LogNorm(vmin=lower_bound, vmax=upper_bound) if log else None
 
     if ax is None:
         fig, ax = plt.subplots(figsize=(6, 5))
