@@ -526,12 +526,20 @@ def _evaluate_ensemble(
     )
     settings = problem.ensemble_settings
     beta_vals = np.linspace(float(settings["beta_min"]), float(settings["beta_max"]), int(settings["num_beta"]))
+    beta_weights = np.exp(-0.5 * ((beta_vals - 1.0) / 0.1) ** 2)
+    beta_weights = beta_weights / beta_weights.sum()
     detuning_vals = np.linspace(
         float(settings["detuning_MHz_min"]),
         float(settings["detuning_MHz_max"]),
         int(settings["num_detuning"]),
     )
     detuning_offsets = detuning_vals * _TWO_PI
+    delta_ref = float(delta_eval[0]) if delta_eval.size else 0.0
+    sigma_detuning = 0.1 * abs(delta_ref)
+    if sigma_detuning <= 0.0:
+        sigma_detuning = 0.1
+    detuning_weights = np.exp(-0.5 * (detuning_offsets / sigma_detuning) ** 2)
+    detuning_weights = detuning_weights / detuning_weights.sum()
     ensemble_size = beta_vals.size * detuning_vals.size
 
     pen_power, pen_neg, grad_penalty_time = penalty_terms(
@@ -561,9 +569,10 @@ def _evaluate_ensemble(
     fid_sum = 0.0
     fid_sq_sum = 0.0
 
-    for beta in beta_vals:
+    for beta, beta_weight in zip(beta_vals, beta_weights):
         omega_mod = beta * omega
-        for detuning in detuning_offsets:
+        for detuning, det_weight in zip(detuning_offsets, detuning_weights):
+            weight = float(beta_weight * det_weight)
             delta_mod = delta_eval + detuning
             sample_cost, sample_grad = accumulate_cost_and_grads(
                 omega_mod,
@@ -578,23 +587,22 @@ def _evaluate_ensemble(
             sample_infidelity = float(sample_cost.get("terminal", 0.0))
             gO_time = np.asarray(sample_grad.get("dJ/dOmega", np.zeros_like(omega_mod)), dtype=np.float64)
             gD_time = np.asarray(sample_grad.get("dJ/dDelta", np.zeros_like(delta_mod)), dtype=np.float64)
-            inf_sum += sample_infidelity
+            inf_sum += weight * sample_infidelity
             sample_fidelity = float(np.clip(1.0 - sample_infidelity, 0.0, 1.0))
-            fid_sum += sample_fidelity
-            fid_sq_sum += sample_fidelity * sample_fidelity
-            gO_acc += beta * np.asarray(gO_time, dtype=np.float64)
+            fid_sum += weight * sample_fidelity
+            fid_sq_sum += weight * sample_fidelity * sample_fidelity
+            gO_acc += weight * beta * np.asarray(gO_time, dtype=np.float64)
             if problem.delta_slice is not None:
-                gD_acc += np.asarray(gD_time, dtype=np.float64)
+                gD_acc += weight * np.asarray(gD_time, dtype=np.float64)
 
-    inv_members = 1.0 / float(ensemble_size)
-    mean_final_infidelity = float(np.clip(inf_sum * inv_members, 0.0, 1.0))
-    mean_final_fidelity = float(np.clip(fid_sum * inv_members, 0.0, 1.0))
-    variance = max(fid_sq_sum * inv_members - mean_final_fidelity * mean_final_fidelity, 0.0)
+    mean_final_infidelity = float(np.clip(inf_sum, 0.0, 1.0))
+    mean_final_fidelity = float(np.clip(fid_sum, 0.0, 1.0))
+    variance = max(fid_sq_sum - mean_final_fidelity * mean_final_fidelity, 0.0)
     std_final_fidelity = math.sqrt(variance)
 
-    gO_time_mean = gO_acc * inv_members + grad_penalty_time
+    gO_time_mean = gO_acc + grad_penalty_time
     if problem.delta_slice is not None:
-        gD_time_mean = gD_acc * inv_members
+        gD_time_mean = gD_acc
     else:
         gD_time_mean = None
 
