@@ -6,7 +6,7 @@ qoc_common.py - Shared utilities for GRAPE/CRAB notebooks.
 - Constraints: optional amplitude bounds helper
 - Viz helpers: rad/s <-> MHz conversion and quick_plot
 
-All physics arrays are expected in SI units (t in seconds, amplitudes in rad/s).
+All physics arrays are expected in microsecond / rad-per-microsecond units.
 """
 from __future__ import annotations
 
@@ -113,6 +113,7 @@ def _penalty_terms(
     neg_kappa: float,
 ) -> tuple[float, float, np.ndarray]:
     """Return (fluence_penalty, negativity_penalty, grad_omega)."""
+    # Alias expected name for external imports.
     omega = np.asarray(omega, dtype=float)
     dt = float(dt)
     grad = np.zeros_like(omega, dtype=float)
@@ -226,16 +227,21 @@ def terminal_cost_and_grad(
     gO += penalty_grad
     return cost, gO, gD
 
+
+# Backwards-compatible export
+penalty_terms = _penalty_terms
 # ---------- Constraints ----------
 def apply_bounds(x: np.ndarray, limit: float | None) -> np.ndarray:
     """Symmetric box bounds: clip to [-limit, limit] if limit provided."""
     return np.clip(x, -limit, limit) if (limit is not None) else x
 
 # ---------- Viz helpers ----------
-def radps_to_MHz(x: np.ndarray | float) -> np.ndarray | float:
-    """Convert rad/s to MHz for display."""
+def radus_to_MHz(x: np.ndarray | float) -> np.ndarray | float:
+    """Convert rad/us to MHz for display."""
     import numpy as _np
-    return (_np.asarray(x) / (2 * _np.pi * 1e6)) if isinstance(x, _np.ndarray) else (x / (2 * np.pi * 1e6))
+    array_x = _np.asarray(x)
+    converted = array_x / (2 * _np.pi)
+    return converted if isinstance(x, _np.ndarray) else float(converted)
 
 def quick_plot(
     t: np.ndarray,
@@ -249,11 +255,10 @@ def quick_plot(
     """Quick three-panel plot in microseconds and MHz with baseline overlays."""
     import matplotlib.pyplot as plt
 
-    t_us = t * 1e6
+    t_us = np.asarray(t, dtype=float)  # Already in microseconds.
 
     def _to_MHz(arr):
-        import numpy as _np
-        return _np.asarray(arr) / (2 * np.pi * 1e6)
+        return np.asarray(arr, dtype=float) / (2 * np.pi)
 
     fig, axs = plt.subplots(3, 1, figsize=(8, 6), layout="constrained")
     axs[0].plot(t_us, _to_MHz(Omega), label=r"$\\Omega(t)$")
@@ -288,6 +293,6 @@ __all__ = [
     "terminal_cost_and_grad",
     "penalty_terms",
     "apply_bounds",
-    "radps_to_MHz",
+    "radus_to_MHz",
     "quick_plot",
 ]
