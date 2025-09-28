@@ -1,4 +1,4 @@
-"""Plotting utilities for GRAPE/CRAB workflows (µs, rad/µs)."""
+"""Plotting utilities for GRAPE/CRAB workflows (us, rad/us)."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -40,12 +40,20 @@ def _save_figure(fig: plt.Figure, directory: Path, stem: str, save_svg: bool = F
 
 def plot_cost_history(result: Result, *, save: bool = True, ax: Axes | None = None) -> Axes:
     history = result.history
-    total = np.asarray(history.get("total"), dtype=float)
-    if total.size == 0:
+    total_series = history.get("total")
+    if total_series is None:
         raise ValueError("Result history does not contain 'total' values.")
-    iterations = np.asarray(history.get("iter"), dtype=float)
-    if iterations.size != total.size:
-        iterations = np.arange(1, total.size + 1)
+    total = np.asarray(total_series, dtype=float)
+    if total.size == 0:
+        raise ValueError("Result history provides empty 'total' values.")
+    iter_series = history.get("iter")
+    if iter_series is None:
+        # Fallback to implicit iteration index when history omits explicit entries.
+        iterations = np.arange(1, total.size + 1, dtype=float)
+    else:
+        iterations = np.asarray(iter_series, dtype=float)
+        if iterations.size != total.size:
+            iterations = np.arange(1, total.size + 1, dtype=float)
 
     if ax is None:
         fig, ax = plt.subplots(figsize=(6, 4))
@@ -83,10 +91,15 @@ def plot_penalties_history(result: Result, *, save: bool = True, ax: Axes | None
             _save_figure(fig, figures_dir, "penalties_history")
         return ax
 
-    iterations = np.asarray(history.get("iter"), dtype=float)
+    iter_series = history.get("iter")
     first_series = np.asarray(history[penalty_keys[0]], dtype=float)
-    if iterations.size != first_series.size:
-        iterations = np.arange(1, first_series.size + 1)
+    if iter_series is None:
+        # Fallback to implicit iteration index when history omits explicit entries.
+        iterations = np.arange(1, first_series.size + 1, dtype=float)
+    else:
+        iterations = np.asarray(iter_series, dtype=float)
+        if iterations.size != first_series.size:
+            iterations = np.arange(1, first_series.size + 1, dtype=float)
 
     for key in penalty_keys:
         values = np.asarray(history[key], dtype=float)
@@ -121,18 +134,18 @@ def plot_pulses(result: Result, *, save: bool = True, axes: Sequence[Axes] | Non
         fig = axes[0].figure
     ax_omega, ax_delta = axes
 
-    ax_omega.plot(t_us, omega, label="Optimized Î©(t)")
-    ax_omega.plot(t_us, omega_base, ls="--", label="Baseline Î©(t)")
-    ax_omega.set_ylabel("Î© (rad/µs)")
+    ax_omega.plot(t_us, omega, label="Optimized Omega(t)")
+    ax_omega.plot(t_us, omega_base, ls="--", label="Baseline Omega(t)")
+    ax_omega.set_ylabel("Omega (rad/us)")
     ax_omega.grid(True, ls=":", alpha=0.6)
     ax_omega.legend()
 
     if delta is not None:
-        ax_delta.plot(t_us, np.asarray(delta, dtype=float), label="Optimized Î”(t)")
+        ax_delta.plot(t_us, np.asarray(delta, dtype=float), label="Optimized Delta(t)")
     if delta_base is not None:
-        ax_delta.plot(t_us, np.asarray(delta_base, dtype=float), ls="--", label="Baseline Î”(t)")
+        ax_delta.plot(t_us, np.asarray(delta_base, dtype=float), ls="--", label="Baseline Delta(t)")
     ax_delta.set_xlabel("Time ($\mu$s)")
-    ax_delta.set_ylabel("Î” (rad/µs)")
+    ax_delta.set_ylabel("Delta (rad/us)")
     ax_delta.grid(True, ls=":", alpha=0.6)
     if delta is not None or delta_base is not None:
         ax_delta.legend()
@@ -264,11 +277,12 @@ def plot_robustness_heatmap(
         fig = ax.figure
 
     c = ax.pcolormesh(X, Y, infidelity, shading="auto", cmap=cmap, norm=norm)
-    ax.set_xlabel("Detuning offset Î”â‚€ (MHz)")
-    ax.set_ylabel("Pulse area (Ï€ units)")
-    ax.set_title(f"Terminal infidelity â€” {label}")
-    cb = fig.colorbar(c, ax=ax)
-    cb.set_label("Terminal infidelity")
+    ax.set_xlabel("Detuning offset Delta_0 (MHz)")
+    ax.set_ylabel("Pulse area (pi units)")
+    ax.set_title(f"Terminal infidelity - {label}")
+    if add_colorbar:
+        cb = fig.colorbar(c, ax=ax)
+        cb.set_label("Terminal infidelity")
 
     if save:
         stem = f"heatmap_terminal_vs_detuning_area_{label}"
