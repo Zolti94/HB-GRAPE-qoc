@@ -1,0 +1,60 @@
+        "    ExperimentConfig,\n",
+        "    override_from_dict,\n",
+        "    run_experiment,\n",
+        "    plot_cost_history,\n",
+        "    plot_pulses,\n",
+        "    plot_summary,\n",
+        "    plot_penalties_history,\n",
+        "    Result,\n",
+        ")\n"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "## Parameter Panel\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 9,
+      "metadata": {
+        "tags": [
+          "parameters"
+        ]
+      },
+      "outputs": [
+        {
+          "name": "stdout",
+          "output_type": "stream",
+          "text": [
+            "Parameter summary:\n",
+            "        objective: terminal\n",
+            "           method: adam\n",
+            "        max_iters: 2000\n",
+            "    learning_rate: 0.05\n",
+            "        grad_clip: None\n",
+            "                K: 4\n",
+            "        use_delta: True\n",
+            "          w_power: 0.0001\n",
+            "            w_neg: 1.0\n",
+            "{\n",
+            "  \"baseline\": {\n",
+            "    \"name\": \"default\",\n",
+            "    \"path\": null\n",
+            "  },\n",
+            "  \"run_name\": null,\n",
+            "  \"artifacts_root\": \"C:\\\\Users\\\\yehon\\\\Dropbox\\\\Thesis\\\\Projects\\\\GRAPE + CRAB\\\\results\\\\quickstart\",\n",
+            "  \"random_seed\": null,\n",
+            "  \"optimizer_options\": {\n",
+            "    \"method\": \"adam\",\n",
+            "    \"max_iters\": 2000,\n",
+            "    \"learning_rate\": 0.05,\n",
+            "    \"beta1\": 0.9,\n",
+            "    \"beta2\": 0.999,\n",
+            "    \"epsilon\": 1e-08,\n",
+            "    \"grad_clip\": null,\n",
+            "    \"optimize_delta\": true,\n",
+            "    \"K\": 4,\n",
+            "    \"omegas_rad_per_us\": [\n",
