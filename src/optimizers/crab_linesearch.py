@@ -29,6 +29,8 @@ def _make_step_stats(
     wall_time: float,
     calls: int,
 ) -> StepStats:
+    """Package scalar metrics for logging and serialization."""
+
     return StepStats(
         iteration=iteration,
         total=float(cost.get("total", 0.0)),
@@ -52,6 +54,26 @@ def optimize_linesearch(
     *,
     coeffs0: np.ndarray | None = None,
 ) -> OptimizationOutput:
+    """Run Armijo backtracking line search on CRAB coefficients.
+    
+    Parameters
+    ----------
+    config : ExperimentConfig
+    Experiment configuration supplying optimizer options.
+    _paths : ArtifactPaths
+    Artifact locations (unused by optimizer front-end).
+    problem : CrabProblem
+    CRAB problem definition containing basis and metadata.
+    coeffs0 : numpy.ndarray, optional
+    Optional initial coefficients overriding ``problem.coeffs_init``.
+    
+    Returns
+    -------
+    OptimizationOutput
+    Structured result containing coefficients, metrics, and history.
+    """
+
+
     options = dict(config.optimizer_options)
     max_iters = int(options.get("max_iters", 200))
     alpha0 = float(options.get("alpha0", options.get("learning_rate", 0.1)))
@@ -94,6 +116,7 @@ def optimize_linesearch(
         if prev_total is not None:
             rel_impr = abs(prev_total - total_cost) / max(1.0, abs(prev_total))
             if rel_impr <= rtol:
+                # Terminate early when relative improvement stalls.
                 status = "converged_rtol"
                 stats = _make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls)
                 state.record(stats)
@@ -117,6 +140,7 @@ def optimize_linesearch(
         candidate_extras = extras
 
         for bt in range(max_backtracks + 1):
+            # Backtrack along the search direction until Armijo condition holds.
             candidate_coeffs = coeffs + alpha * direction
             candidate_cost, candidate_grad, candidate_extras = evaluate_problem(
                 problem, candidate_coeffs, neg_epsilon=neg_epsilon

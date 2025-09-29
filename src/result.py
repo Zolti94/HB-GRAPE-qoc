@@ -16,6 +16,19 @@ ResultPayload = Mapping[str, Any]
 
 
 def _json_ready(value: Any) -> Any:
+    """Convert nested experiment outputs to JSON-serializable objects.
+
+    Parameters
+    ----------
+    value : Any
+        Payload captured during optimization (may include NumPy arrays, paths, or datetimes).
+
+    Returns
+    -------
+    Any
+        Plain Python equivalent suitable for ``json.dumps``.
+    """
+
     if isinstance(value, (np.floating, np.integer)):
         return value.item()
     if isinstance(value, np.ndarray):
@@ -33,7 +46,27 @@ def _json_ready(value: Any) -> Any:
 
 @dataclass(slots=True)
 class Result:
-    """Pack history, metrics, and control outputs for an experiment run."""
+    """Structured record capturing the outcome of a single experiment run.
+
+    Parameters
+    ----------
+    run_name : str
+        Identifier assigned to the run directory.
+    artifacts_dir : pathlib.Path
+        Filesystem location containing saved artifacts.
+    config : ExperimentConfig
+        Configuration used to launch the experiment.
+    history : dict[str, numpy.ndarray], optional
+        Time-series traces gathered during optimization.
+    final_metrics : dict[str, float], optional
+        Scalar metrics reported at completion.
+    pulses : dict[str, numpy.ndarray], optional
+        Control waveforms and metadata emitted by the optimizer.
+    created_at : datetime, optional
+        Timestamp capturing when the result object was created.
+    optimizer_state : dict[str, Any], optional
+        Optimizer-specific diagnostic information.
+    """
 
     run_name: str
     artifacts_dir: Path
@@ -45,6 +78,8 @@ class Result:
     optimizer_state: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize the result to primitives for persistence or logging."""
+
         return {
             "run_name": self.run_name,
             "artifacts_dir": str(self.artifacts_dir),
@@ -58,6 +93,8 @@ class Result:
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "Result":
+        """Recreate a :class:`Result` instance from serialized payloads."""
+
         config = ExperimentConfig.from_dict(payload["config"])
         run_name = str(payload["run_name"])
         artifacts_dir = Path(payload["artifacts_dir"])
@@ -79,6 +116,9 @@ class Result:
         )
 
     def summary(self) -> dict[str, Any]:
+        """Return a compact overview consisting of run name, cost, and iterations."""
+
         cost = float(self.final_metrics.get("cost", np.nan))
+        # All history series share a length; use any entry to infer iteration count.
         iterations = int(len(next(iter(self.history.values()))) if self.history else 0)
         return {"run_name": self.run_name, "cost": cost, "iterations": iterations}

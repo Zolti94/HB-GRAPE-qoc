@@ -45,6 +45,19 @@ _TWO_PI = 2.0 * np.pi
 
 
 def _rho_to_state(rho: NDArrayComplex) -> NDArrayComplex:
+    """Return the dominant eigenvector of ``rho`` with a real leading component.
+
+    Parameters
+    ----------
+    rho : numpy.ndarray
+        State vector or 2x2 density matrix.
+
+    Returns
+    -------
+    numpy.ndarray
+        Normalised state vector suitable for control propagation.
+    """
+
     rho = np.asarray(rho, dtype=np.complex128)
     if rho.shape == (2,):
         vec = rho
@@ -60,6 +73,28 @@ def _rho_to_state(rho: NDArrayComplex) -> NDArrayComplex:
 
 @dataclass(slots=True)
 class StepStats:
+    """Per-iteration metrics recorded by optimizers for logging.
+
+    Attributes
+    ----------
+    iteration : int
+        Iteration counter (1-based).
+    total, terminal, path, ensemble : float
+        Cost components reported by the objective.
+    power_penalty, neg_penalty : float
+        Regularisation terms applied to controls.
+    grad_norm : float
+        Norm of current gradient in coefficient space.
+    step_norm : float
+        Norm of parameter update applied this iteration.
+    lr : float
+        Learning rate or step size used.
+    wall_time_s : float
+        Wall time consumed by the iteration.
+    calls_per_iter : int
+        Oracle/propagation calls billed to this iteration.
+    """
+
     iteration: int
     total: float
     terminal: float
@@ -75,6 +110,8 @@ class StepStats:
 
 
 def _init_history() -> Dict[str, list[Any]]:
+    """Initialise the history dictionary used by :class:`OptimizerState`."""
+
     return {
         "iter": [],
         "total": [],
@@ -93,6 +130,22 @@ def _init_history() -> Dict[str, list[Any]]:
 
 @dataclass(slots=True)
 class OptimizerState:
+    """Mutable container tracking coefficients, gradients, and history.
+
+    Attributes
+    ----------
+    coeffs : numpy.ndarray
+        Current coefficient vector.
+    grad : numpy.ndarray
+        Current gradient in coefficient space.
+    history : dict[str, list[Any]]
+        Metrics recorded per iteration via :meth:`record`.
+    runtime_s : float
+        Elapsed wall-clock time at termination.
+    status : str
+        Final status code (e.g., ``'completed'``).
+    """
+
     coeffs: NDArrayFloat
     grad: NDArrayFloat
     history: Dict[str, list[Any]] = field(default_factory=_init_history)
@@ -100,6 +153,8 @@ class OptimizerState:
     status: str = "in_progress"
 
     def record(self, stats: StepStats) -> None:
+        """Append :class:`StepStats` values to the internal history lists."""
+
         self.history["iter"].append(int(stats.iteration))
         self.history["total"].append(float(stats.total))
         self.history["terminal"].append(float(stats.terminal))
@@ -116,6 +171,32 @@ class OptimizerState:
 
 @dataclass(slots=True)
 class CrabProblem:
+    """Problem definition capturing bases, baselines, and metadata for CRAB.
+
+    Attributes
+    ----------
+    t_us : numpy.ndarray
+        Time grid in microseconds.
+    dt_us : float
+        Time-step size in microseconds.
+    omega_base, delta_base : numpy.ndarray
+        Baseline control envelopes.
+    basis_omega, basis_delta : numpy.ndarray
+        CRAB basis matrices mapping coefficients to controls.
+    psi0, psi_target : numpy.ndarray
+        Initial and target states for optimisation.
+    penalties : PenaltyConfig
+        Penalty weights applied during optimisation.
+    optimize_delta : bool
+        Whether detuning coefficients are optimised.
+    metadata : dict[str, Any]
+        Auxiliary metadata propagated with results.
+    coeffs_init : numpy.ndarray
+        Initial coefficient vector.
+    objective : str
+        Active optimisation objective (``'terminal'``, ``'path'``, or ``'ensemble'``).
+    """
+
     t_us: NDArrayFloat
     dt_us: float
     omega_base: NDArrayFloat
@@ -160,6 +241,8 @@ class CrabProblem:
         return 0 if self.delta_slice is None or self.basis_delta is None else self.basis_delta.shape[1]
 
     def split_coeffs(self, coeffs: NDArrayFloat) -> tuple[NDArrayFloat, Optional[NDArrayFloat]]:
+        """Split concatenated coefficients into omega and optional delta slices."""
+
         coeffs = np.asarray(coeffs, dtype=np.float64)
         c_omega = coeffs[self.omega_slice]
         if self.delta_slice is not None and self.basis_delta is not None:
@@ -169,6 +252,8 @@ class CrabProblem:
         return c_omega, c_delta
 
     def controls_from_coeffs(self, coeffs: NDArrayFloat) -> tuple[NDArrayFloat, Optional[NDArrayFloat]]:
+        """Construct control waveforms from coefficients and baselines."""
+
         c_omega, c_delta = self.split_coeffs(coeffs)
         omega = coeffs_to_control(self.basis_omega, c_omega, base=self.omega_base)
         if c_delta is not None and self.basis_delta is not None and self.delta_base is not None:
@@ -182,6 +267,8 @@ class CrabProblem:
         grad_omega: NDArrayFloat,
         grad_delta: Optional[NDArrayFloat],
     ) -> NDArrayFloat:
+        """Project gradients from the time domain back into coefficient space."""
+
         pieces = [self.basis_omega.T @ np.asarray(grad_omega, dtype=np.float64)]
         if self.delta_slice is not None and self.basis_delta is not None and grad_delta is not None:
             pieces.append(self.basis_delta.T @ np.asarray(grad_delta, dtype=np.float64))
@@ -190,6 +277,26 @@ class CrabProblem:
 
 @dataclass(slots=True)
 class OptimizationOutput:
+    """Structured result returned by optimizer front-ends.
+
+    Attributes
+    ----------
+    coeffs : numpy.ndarray
+        Optimised coefficient vector.
+    omega, delta : numpy.ndarray or None
+        Control waveforms assembled from the coefficients.
+    cost_terms : dict[str, float]
+        Final cost breakdown reported by the objective.
+    history : dict[str, numpy.ndarray]
+        Per-iteration metric arrays.
+    runtime_s : float
+        Total wall-clock runtime of the optimizer.
+    optimizer_state : dict[str, Any]
+        Additional optimizer metadata (status, hyperparameters, etc.).
+    extras : dict[str, Any] | None
+        Implementation-specific diagnostics (e.g., gradients in time domain).
+    """
+
     coeffs: NDArrayFloat
     omega: NDArrayFloat
     delta: Optional[NDArrayFloat]
@@ -201,6 +308,8 @@ class OptimizationOutput:
 
 
 def clip_gradients(grad: NDArrayFloat, *, max_norm: float | None = None) -> NDArrayFloat:
+    """Optionally clip gradient magnitude to ``max_norm``."""
+
     vec = np.asarray(grad, dtype=np.float64)
     if max_norm is None or max_norm <= 0.0:
         return vec
@@ -211,6 +320,8 @@ def clip_gradients(grad: NDArrayFloat, *, max_norm: float | None = None) -> NDAr
 
 
 def safe_norm(arr: NDArrayFloat) -> float:
+    """Return Euclidean norm, or ``inf`` if ``arr`` contains non-finite values."""
+
     vec = np.asarray(arr, dtype=np.float64)
     if not np.isfinite(vec).all():
         return float("inf")
@@ -218,6 +329,8 @@ def safe_norm(arr: NDArrayFloat) -> float:
 
 
 def _resolve_baseline_dir(config: ExperimentConfig) -> Path:
+
+    """Identify the baseline directory implied by ``config`` or defaults."""
     spec = config.baseline
     if spec.path is not None:
         return Path(spec.path)
@@ -231,6 +344,8 @@ def _resolve_baseline_dir(config: ExperimentConfig) -> Path:
 
 
 def _load_arrays(base_dir: Path) -> tuple[Dict[str, Any], Dict[str, Any]]:
+
+    """Load baseline arrays and metadata from disk, returning copies."""
     arrays_path = base_dir / "arrays.npz"
     metadata_path = base_dir / "metadata.json"
     with np.load(arrays_path, allow_pickle=True) as npz:
@@ -245,6 +360,8 @@ def _load_arrays(base_dir: Path) -> tuple[Dict[str, Any], Dict[str, Any]]:
 
 
 def _initial_coefficients(problem: CrabProblem, options: Mapping[str, Any]) -> NDArrayFloat:
+
+    """Derive initial coefficients while honouring user overrides."""
     coeffs = problem.coeffs_init
     if options.get("coeffs_init") is not None:
         coeffs = np.asarray(options["coeffs_init"], dtype=np.float64)
@@ -265,6 +382,8 @@ def _initial_coefficients(problem: CrabProblem, options: Mapping[str, Any]) -> N
 
 
 def load_crab_problem(config: ExperimentConfig) -> tuple[CrabProblem, NDArrayFloat, Dict[str, Any]]:
+
+    """Construct a :class:`CrabProblem` along with initial coefficients and metadata."""
     base_dir = _resolve_baseline_dir(config)
     arrays, metadata = _load_arrays(base_dir)
 
@@ -394,6 +513,7 @@ def _evaluate_terminal(
     delta: Optional[NDArrayFloat],
     neg_epsilon: float,
 ) -> tuple[Dict[str, float], NDArrayFloat, Dict[str, Any]]:
+    """Evaluate terminal objective value and gradients for given controls."""
     delta_eval = delta if delta is not None else (
         np.asarray(problem.delta_base, dtype=np.float64) if problem.delta_base is not None else np.zeros_like(omega)
     )
@@ -435,6 +555,7 @@ def _evaluate_path(
     omega: NDArrayFloat,
     delta: Optional[NDArrayFloat],
 ) -> tuple[Dict[str, float], NDArrayFloat, Dict[str, Any]]:
+    """Evaluate path objective using instantaneous ground-state projectors."""
     delta_eval = delta if delta is not None else (
         np.asarray(problem.delta_base, dtype=np.float64) if problem.delta_base is not None else np.zeros_like(omega)
     )
@@ -521,6 +642,7 @@ def _evaluate_ensemble(
     delta: Optional[NDArrayFloat],
     neg_epsilon: float,
 ) -> tuple[Dict[str, float], NDArrayFloat, Dict[str, Any]]:
+    """Evaluate ensemble objective by marginalising over amplitude/detuning samples."""
     delta_eval = delta if delta is not None else (
         np.asarray(problem.delta_base, dtype=np.float64) if problem.delta_base is not None else np.zeros_like(omega)
     )
@@ -570,8 +692,10 @@ def _evaluate_ensemble(
     fid_sq_sum = 0.0
 
     for beta, beta_weight in zip(beta_vals, beta_weights):
+        # Sweep amplitude-scaling samples to estimate ensemble robustness.
         omega_mod = beta * omega
         for detuning, det_weight in zip(detuning_offsets, detuning_weights):
+            # Shift detuning samples and accumulate weighted gradients.
             weight = float(beta_weight * det_weight)
             delta_mod = delta_eval + detuning
             sample_cost, sample_grad = accumulate_cost_and_grads(
@@ -642,6 +766,7 @@ def evaluate_problem(
     *,
     neg_epsilon: float = 1e-6,
 ) -> tuple[Dict[str, float], NDArrayFloat, Dict[str, Any]]:
+    """Dispatch to the active objective and return cost, gradient, and extras."""
     omega, delta = problem.controls_from_coeffs(coeffs)
     objective = problem.objective
     if objective == "path":
@@ -657,6 +782,8 @@ def evaluate_problem(
 
 
 def history_to_arrays(history: Dict[str, list[Any]]) -> Dict[str, NDArrayFloat]:
+
+    """Convert iteration histories into NumPy arrays for serialization."""
     arrays: Dict[str, NDArrayFloat] = {}
     for key, values in history.items():
         if key == "iter" or key == "calls_per_iter":

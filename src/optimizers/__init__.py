@@ -22,6 +22,18 @@ _REGISTRY: Dict[str, OptimizerCallable] = {}
 
 
 def register_optimizer(name: str, factory: OptimizerCallable, *, overwrite: bool = False) -> None:
+    """Register an optimizer implementation under ``name``.
+
+    Parameters
+    ----------
+    name : str
+        Registry key used to retrieve the optimizer.
+    factory : OptimizerCallable
+        Callable that constructs or executes the optimizer.
+    overwrite : bool, optional
+        Allow replacing an existing registration when ``True``.
+    """
+
     key = name.lower()
     if not overwrite and key in _REGISTRY:
         raise ValueError(f"Optimizer '{name}' already registered.")
@@ -29,6 +41,24 @@ def register_optimizer(name: str, factory: OptimizerCallable, *, overwrite: bool
 
 
 def get_optimizer(name: str) -> OptimizerCallable:
+    """Return the optimizer factory previously registered under ``name``.
+
+    Parameters
+    ----------
+    name : str
+        Registry key corresponding to a registered optimizer.
+
+    Returns
+    -------
+    OptimizerCallable
+        Callable capable of running the chosen optimizer.
+
+    Raises
+    ------
+    KeyError
+        If ``name`` is not present in the registry.
+    """
+
     key = name.lower()
     try:
         return _REGISTRY[key]
@@ -37,6 +67,14 @@ def get_optimizer(name: str) -> OptimizerCallable:
 
 
 def available_optimizers() -> tuple[str, ...]:
+    """Return registered optimizer names sorted alphabetically.
+
+    Returns
+    -------
+    tuple[str, ...]
+        Sorted tuple of registry keys.
+    """
+
     return tuple(sorted(_REGISTRY.keys()))
 
 

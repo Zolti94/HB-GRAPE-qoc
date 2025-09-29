@@ -18,6 +18,8 @@ __all__ = ["run_experiment", "register_optimizer", "available_optimizers"]
 
 
 def _coerce_config(config: ExperimentConfig | Mapping[str, Any]) -> ExperimentConfig:
+    """Normalize user input into an :class:`ExperimentConfig` instance."""
+
     if isinstance(config, ExperimentConfig):
         return config
     if isinstance(config, Mapping):
@@ -26,14 +28,20 @@ def _coerce_config(config: ExperimentConfig | Mapping[str, Any]) -> ExperimentCo
 
 
 def _write_json(path, payload) -> None:
+    """Persist ``payload`` as indented JSON after converting NumPy types."""
+
     path.write_text(json.dumps(json_ready(payload), indent=2), encoding="utf-8")
 
 
 def _write_history(path, history: Mapping[str, np.ndarray]) -> None:
+    """Store optimizer history arrays in a NumPy ``.npz`` archive."""
+
     np.savez(path, **{k: np.asarray(v) for k, v in history.items()})
 
 
 def _write_pulses(path, problem, outcome: OptimizationOutput) -> None:
+    """Serialize time grid, controls, and coefficients for later analysis."""
+
     data = {
         "t_us": problem.t_us,
         "omega": outcome.omega,
@@ -56,6 +64,8 @@ def _build_result(
     outcome: OptimizationOutput,
     artifacts_dir,
 ) -> Result:
+    """Assemble a :class:`Result` instance from optimizer outputs."""
+
     pulses_dict = {
         "t_us": problem.t_us,
         "omega": outcome.omega,
@@ -93,7 +103,26 @@ def run_experiment(
     timestamp: datetime | None = None,
     exist_ok: bool = False,
 ) -> Result:
-    """Run an experiment using a registered optimizer."""
+    """Run an experiment using a registered optimizer and persist artifacts.
+
+    Parameters
+    ----------
+    config : ExperimentConfig or Mapping[str, Any]
+        Base configuration or overrides describing the experiment.
+    method : str, optional
+        Optimizer registry key; overrides ``config.optimizer_options['method']`` when provided.
+    run_name : str, optional
+        Custom run directory name; defaults to ``config.run_name`` or a timestamped slug.
+    timestamp : datetime, optional
+        Timestamp injected into the run name; ``datetime.utcnow`` when omitted.
+    exist_ok : bool, optional
+        Allow reuse of an existing run directory (helpful for reruns).
+
+    Returns
+    -------
+    Result
+        Structured record containing metrics, histories, and saved controls.
+    """
 
     experiment_config = _coerce_config(config)
     method_name = method or experiment_config.optimizer_options.get("method", "")
@@ -132,6 +161,7 @@ def run_experiment(
     metrics_payload['path_infidelity'] = metrics_payload['path']
     metrics_payload['ensemble_infidelity'] = metrics_payload['ensemble']
     metrics_payload['terminal_eval'] = float(outcome.cost_terms.get('terminal_eval', metrics_payload['terminal']))
+    # Populate defaults so downstream plotting/reporting code can rely on common keys.
 
     _write_json(paths.config_json, experiment_config.to_dict())
     _write_json(paths.metrics_json, metrics_payload)
@@ -144,3 +174,4 @@ def run_experiment(
 
     result = _build_result(final_run_name, experiment_config, problem, outcome, paths.run_dir)
     return result
+
