@@ -85,6 +85,19 @@ def _su2_step(omega_k: float, delta_k: float, dt_us: float) -> NDArrayComplex:
 
 
 def _psi_to_rho(psi: NDArrayComplex) -> NDArrayComplex:
+    """Return the pure-state density matrix ``|psi><psi|``.
+
+    Parameters
+    ----------
+    psi : numpy.ndarray
+        State vector in the computational basis with shape ``(2,)``.
+
+    Returns
+    -------
+    numpy.ndarray
+        Rank-1 density matrix compatible with Bloch-vector utilities.
+    """
+
     vec = np.asarray(psi, dtype=np.complex128)
     if vec.shape != (2,):
         raise ValueError("State vector must have shape (2,).")

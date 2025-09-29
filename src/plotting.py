@@ -26,12 +26,39 @@ _HEATMAP_MAX_DEFAULT = 1.0
 
 
 def _ensure_figures_dir(result: Result) -> Path:
+    """Return the figures directory for ``result``, creating it if necessary.
+
+    Parameters
+    ----------
+    result : Result
+        Optimization result whose artifact directory contains the figures folder.
+
+    Returns
+    -------
+    pathlib.Path
+        Absolute path to the figures directory.
+    """
+
     figures_dir = Path(result.artifacts_dir) / "figures"
     figures_dir.mkdir(parents=True, exist_ok=True)
     return figures_dir
 
 
 def _save_figure(fig: plt.Figure, directory: Path, stem: str, save_svg: bool = False) -> None:
+    """Save a figure to PNG (and optionally SVG) with consistent formatting.
+
+    Parameters
+    ----------
+    fig : matplotlib.figure.Figure
+        Figure instance to export.
+    directory : pathlib.Path
+        Destination directory for the image files.
+    stem : str
+        Filename stem used for the exported images.
+    save_svg : bool, optional
+        When ``True`` also export an SVG alongside the PNG.
+    """
+
     directory.mkdir(parents=True, exist_ok=True)
     png_path = directory / f"{stem}.png"
     fig.savefig(png_path, dpi=300, bbox_inches="tight")
@@ -41,6 +68,23 @@ def _save_figure(fig: plt.Figure, directory: Path, stem: str, save_svg: bool = F
 
 
 def plot_cost_history(result: Result, *, save: bool = True, ax: Axes | None = None) -> Axes:
+    """Plot the total cost trajectory for a run and optionally write it to disk.
+
+    Parameters
+    ----------
+    result : Result
+        Optimization result containing the recorded cost history.
+    save : bool, optional
+        When ``True`` export the plot to the run's figures directory.
+    ax : matplotlib.axes.Axes, optional
+        Existing axes to draw on; create a new figure when ``None``.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+        Axis containing the plotted convergence curve.
+    """
+
     history = result.history
     total_series = history.get("total")
     if total_series is None:
@@ -77,6 +121,23 @@ def plot_cost_history(result: Result, *, save: bool = True, ax: Axes | None = No
 
 
 def plot_penalties_history(result: Result, *, save: bool = True, ax: Axes | None = None) -> Axes:
+    """Plot logged penalty terms on a log axis, handling missing histories.
+
+    Parameters
+    ----------
+    result : Result
+        Optimization result containing penalty traces (if recorded).
+    save : bool, optional
+        When ``True`` export the plot to the run's figures directory.
+    ax : matplotlib.axes.Axes, optional
+        Existing axes to draw on; create a new figure when ``None``.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+        Axis containing the rendered penalty curves or placeholder text.
+    """
+
     history = result.history
     penalty_keys = [key for key in history.keys() if key.endswith("_penalty")]
 
@@ -123,6 +184,23 @@ def plot_penalties_history(result: Result, *, save: bool = True, ax: Axes | None
 
 
 def plot_pulses(result: Result, *, save: bool = True, axes: Sequence[Axes] | None = None) -> Sequence[Axes]:
+    """Plot optimized pulses against their baselines for quick inspection.
+
+    Parameters
+    ----------
+    result : Result
+        Optimization result containing pulse data and baselines.
+    save : bool, optional
+        When ``True`` export the figure to the run's figures directory.
+    axes : Sequence[matplotlib.axes.Axes], optional
+        Pre-existing axes to reuse; create a new figure when ``None``.
+
+    Returns
+    -------
+    Sequence[matplotlib.axes.Axes]
+        Axes displaying the optimized and baseline controls.
+    """
+
     pulses = result.pulses
     t_us = np.asarray(pulses["t_us"], dtype=float)
     omega = np.asarray(pulses["omega"], dtype=float)
@@ -162,6 +240,23 @@ def plot_pulses(result: Result, *, save: bool = True, axes: Sequence[Axes] | Non
 
 
 def plot_summary(result: Result, *, save: bool = True, ax: Axes | None = None) -> Axes:
+    """Render a compact metrics table summarizing the optimization outcome.
+
+    Parameters
+    ----------
+    result : Result
+        Optimization result whose scalar metrics should be displayed.
+    save : bool, optional
+        When ``True`` export the table to the run's figures directory.
+    ax : matplotlib.axes.Axes, optional
+        Existing axes to render into; create a new figure when ``None``.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+        Axes containing the rendered metrics table.
+    """
+
     metrics = result.final_metrics
     rows = [
         ("terminal", metrics.get("terminal")),
@@ -217,6 +312,49 @@ def plot_robustness_heatmap(
     save_svg: bool = True,
     add_colorbar: bool = True,
 ) -> tuple[Axes, np.ndarray]:
+    """Map terminal infidelity across detuning and pulse-area perturbations.
+
+    Parameters
+    ----------
+    pulse : Mapping[str, numpy.ndarray]
+        Dictionary containing at least ``omega`` (and optionally ``delta``) pulse envelopes.
+    t_us : numpy.ndarray
+        Time grid in microseconds matching the pulse arrays.
+    delta_base : numpy.ndarray
+        Baseline detuning used when the pulse does not supply ``delta`` explicitly.
+    detuning_MHz_grid : numpy.ndarray
+        Grid of detuning offsets in MHz on which robustness is evaluated.
+    area_pi_grid : numpy.ndarray
+        Grid of scaling factors applied to the pulse area (in units of ``pi``).
+    label : str
+        Identifier used when saving the generated figures and arrays.
+    psi0 : numpy.ndarray
+        Initial state for propagation.
+    target : numpy.ndarray
+        Target state used to evaluate terminal fidelity.
+    save_dir : pathlib.Path
+        Directory where figures and robustness arrays are stored.
+    ax : matplotlib.axes.Axes, optional
+        Existing axes to reuse; create a new figure when ``None``.
+    save : bool, optional
+        Whether to persist the rendered figure and robustness data.
+    log : bool, optional
+        If ``True``, use logarithmic colour scaling.
+    vmin, vmax : float, optional
+        Explicit colour limits; defaults computed from positive entries.
+    cmap : str, optional
+        Matplotlib colormap name used for the heatmap.
+    save_svg : bool, optional
+        When ``True`` also export a vector SVG image.
+    add_colorbar : bool, optional
+        Toggle the colourbar display.
+
+    Returns
+    -------
+    tuple[matplotlib.axes.Axes, numpy.ndarray]
+        The axes containing the plot and the computed infidelity grid.
+    """
+
     """Generate a robustness heatmap over detuning offsets and pulse areas."""
 
     save_dir = Path(save_dir)
@@ -266,6 +404,7 @@ def plot_robustness_heatmap(
     X, Y = np.meshgrid(detuning_MHz_grid, area_pi_grid)
 
     finite_vals = infidelity[np.isfinite(infidelity) & (infidelity > 0.0)]
+    # Ensure colour-scale bounds remain positive for logarithmic normalisation.
     if vmin is None:
         lower_bound = max(float(finite_vals.min(initial=_HEATMAP_MIN_DEFAULT)), _HEATMAP_MIN_DEFAULT)
     else:
