@@ -1,4 +1,4 @@
-"""Shared utilities for the GRAPE/CRAB workflows."""
+﻿"""Shared utilities for the GRAPE/CRAB workflows."""
 from __future__ import annotations
 
 import json
@@ -34,8 +34,10 @@ def json_ready(value: Any) -> Any:
 
     if isinstance(value, (np.integer, np.floating)):
         return value.item()
+    if isinstance(value, (np.complexfloating, complex)):
+        return {"real": float(np.real(value)), "imag": float(np.imag(value))}
     if isinstance(value, np.ndarray):
-        return value.tolist()
+        return json_ready(value.tolist())
     if isinstance(value, dict):
         return {str(k): json_ready(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
@@ -43,8 +45,6 @@ def json_ready(value: Any) -> Any:
     if isinstance(value, Path):
         return str(value)
     return value
-
-
 def require_real_finite(name: str, array: npt.NDArray[Any]) -> NDArrayFloat:
     """Return the array as float64 after verifying it is real and finite."""
 
@@ -80,3 +80,4 @@ def time_block(registry: Dict[str, float] | None = None, key: str | None = None)
         stats["elapsed"] = elapsed
         if registry is not None and key is not None:
             registry[key] = elapsed
+
