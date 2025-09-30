@@ -319,6 +319,8 @@ def _shape_values(kind: str, tau: np.ndarray, duration_us: float, options: Mappi
         values = np.tanh(2.0 * np.arctanh(beta) * s)
     elif kind_lc == "zero":
         values = np.zeros_like(tau)
+    elif kind_lc == "polynomial_chirp":
+        values = 1.25 * s - 0.25 * s**3
     else:
         raise ValueError(f"Unknown pulse shape '{kind}'.")
     return values.astype(np.float64, copy=False)
