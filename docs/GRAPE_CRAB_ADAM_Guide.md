@@ -1,4 +1,4 @@
-# GRAPE + CRAB + Adam Guide
+﻿# GRAPE + CRAB + Adam Guide
 
 This note summarizes the settings used across the GRAPE/CRAB notebooks and mirrors the PDF version shipped with the project. It collects the core equations, penalty terms, and optimisation settings so they can be viewed without a PDF reader.
 
@@ -33,7 +33,7 @@ Let \(\Omega\) denote the discretised control and \(\Delta t\) the time step.
   
   \[ \Omega(t) = \Omega_0(t) + B_{\Omega}(t) c_\Omega,\qquad \Delta(t) = \Delta_0(t) + B_{\Delta}(t) c_\Delta. \]
 - `build_crab_bases` normalises basis columns with respect to \(\Delta t\) and checks grid consistency.
-- The tracked baseline data live in `data/baselines/_baseline_crab/` and include the envelopes, bases, and metadata required to reproduce the notebooks.
+- Baseline envelopes and bases are constructed from `GrapeBaselineConfig` (see `src/baselines/grape_coefficients.py`).
 
 ## 5. Adam optimiser settings
 - Default hyperparameters: learning rate `8e-2`, `beta1 = 0.9`, `beta2 = 0.999`, `eps = 1e-8`.
@@ -44,7 +44,7 @@ Let \(\Omega\) denote the discretised control and \(\Delta t\) the time step.
 - Every mode (terminal / ensemble / adiabatic) stores iterations, wall-clock timing, and gradients in `results/<run_name>/` for reproducibility.
 
 ## 6. Reproducibility checklist
-1. Generate or refresh the baseline dataset: `python scripts/refresh_crab_baseline.py` (produces `arrays.npz` + `metadata.json`).
+1. Configure the baseline parameters directly inside `notebooks/01_CRAB_Quickstart.ipynb` (the notebook calls `src.baselines.build_grape_baseline`).
 2. Run `notebooks/20_adam_crab_comparison.ipynb` to synthesise new pulse histories with Adam.
 3. Use `notebooks/21_optimization_figures.ipynb` to regenerate publication figures.
 

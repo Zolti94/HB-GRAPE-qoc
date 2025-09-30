@@ -1,4 +1,4 @@
-"""Armijo backtracking line-search optimizer for CRAB coefficients."""
+﻿"""Armijo backtracking line-search optimizer for GRAPE coefficients."""
 from __future__ import annotations
 
 import time
@@ -9,7 +9,7 @@ import numpy as np
 from ..config import ExperimentConfig
 from ..artifacts import ArtifactPaths
 from .base import (
-    CrabProblem,
+    GrapeControlProblem,
     OptimizationOutput,
     OptimizerState,
     StepStats,
@@ -50,11 +50,11 @@ def _make_step_stats(
 def optimize_linesearch(
     config: ExperimentConfig,
     _paths: ArtifactPaths,
-    problem: CrabProblem,
+    problem: GrapeControlProblem,
     *,
     coeffs0: np.ndarray | None = None,
 ) -> OptimizationOutput:
-    """Run Armijo backtracking line search on CRAB coefficients.
+    """Run Armijo backtracking line search on GRAPE coefficients.
     
     Parameters
     ----------
@@ -62,8 +62,8 @@ def optimize_linesearch(
     Experiment configuration supplying optimizer options.
     _paths : ArtifactPaths
     Artifact locations (unused by optimizer front-end).
-    problem : CrabProblem
-    CRAB problem definition containing basis and metadata.
+    problem : GrapeControlProblem
+    GRAPE problem definition containing basis and metadata.
     coeffs0 : numpy.ndarray, optional
     Optional initial coefficients overriding ``problem.coeffs_init``.
     
@@ -216,3 +216,4 @@ def optimize_linesearch(
         optimizer_state=optimizer_state,
         extras=extras,
     )
+

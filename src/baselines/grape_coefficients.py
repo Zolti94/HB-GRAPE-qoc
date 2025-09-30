@@ -356,7 +356,7 @@ def _build_pulse(
 def _harmonic_frequencies(modes: np.ndarray, duration_us: float) -> np.ndarray:
     if modes.size == 0:
         return np.empty((0,), dtype=np.float64)
-    return 2.0 * np.pi * np.asarray(modes, dtype=np.float64) / float(duration_us)
+    return np.pi * np.asarray(modes, dtype=np.float64) / float(duration_us)
 
 
 def _sine_basis(tau: np.ndarray, omegas: np.ndarray) -> np.ndarray:
@@ -438,6 +438,21 @@ def build_grape_baseline(config: GrapeBaselineConfig) -> Tuple[Dict[str, np.ndar
         "rho0": np.asarray(config.rho0, dtype=np.complex128),
         "target": np.asarray(config.target, dtype=np.complex128),
     }
+    # Backwards-compatible aliases used by existing notebook/optimizer codepaths.
+    arrays.update(
+        {
+            "t": arrays["t_us"],
+            "dt": arrays["dt_us"],
+            "T": arrays["duration_us"],
+            "Nt": arrays["num_points"],
+            "Omega0": arrays["omega_baseline"],
+            "Delta0": arrays["delta_baseline"],
+            "CRAB_BASIS_OMEGA": arrays["omega_basis"],
+            "CRAB_BASIS_DELTA": arrays["delta_basis"],
+            "CRAB_MODES_OMEGA": omega_modes.astype(np.int32),
+            "CRAB_MODES_DELTA": delta_modes.astype(np.int32),
+        }
+    )
 
     metadata: Dict[str, Any] = {
         "time_grid": config.time_grid.to_dict(),
@@ -494,3 +509,5 @@ def _json_ready(value: Any) -> Any:
     if isinstance(value, np.complexfloating):
         return complex(value)
     return value
+
+

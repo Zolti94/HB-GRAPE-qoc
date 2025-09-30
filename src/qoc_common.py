@@ -1,6 +1,5 @@
 """
 qoc_common.py - Shared utilities for GRAPE/CRAB notebooks.
-- Baseline loading (arrays + policy)
 - Physics: SU(2) step, forward/adjoint propagation
 - Terminal cost & GRAPE gradient with fluence/negativity penalties
 - Constraints: optional amplitude bounds helper
@@ -10,37 +9,10 @@ All physics arrays are expected in microsecond / rad-per-microsecond units.
 """
 from __future__ import annotations
 
-import json
 import warnings
-from pathlib import Path
 from typing import Any, Dict, Tuple
 
 import numpy as np
-
-# ---------- Baseline I/O ----------
-def load_baseline(base_dir: str | Path = "outputs/_baseline") -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    """
-    Load baseline arrays and policy metadata.
-    Returns: (arrays, policy) where
-      arrays: dict with t, dt, T, Nt, Omega0, Delta0, MASK, rho0, target, NORM, SEED
-      policy: dict loaded from metadata.json
-    """
-    base = Path(base_dir)
-    with np.load(base / "arrays.npz", allow_pickle=True) as arrs_file:
-        arrays = {k: np.asarray(arrs_file[k]) for k in arrs_file.files}
-    with open(base / "metadata.json", "r", encoding="utf-8") as f:
-        policy = json.load(f)
-    arrays["t"] = arrays["t"].astype(float)
-    arrays["dt"] = np.asarray(arrays["dt"], dtype=float)
-    arrays["Omega0"] = arrays["Omega0"].astype(float)
-    arrays["Delta0"] = arrays["Delta0"].astype(float)
-    mask = arrays.get("MASK")
-    arrays["MASK"] = np.asarray(mask, dtype=float) if mask is not None else np.empty(0, dtype=float)
-    arrays["rho0"] = arrays["rho0"].astype(np.complex128)
-    arrays["target"] = arrays["target"].astype(np.complex128)
-    arrays["Nt"] = np.asarray(arrays["Nt"]).astype(int)
-    arrays["SEED"] = np.asarray(arrays["SEED"]).astype(int)
-    return arrays, policy
 
 # ---------- Physics ----------
 I2 = np.eye(2, dtype=np.complex128)
@@ -285,7 +257,6 @@ def quick_plot(
     plt.show()
 
 __all__ = [
-    "load_baseline",
     "U_step",
     "forward_rhos",
     "adjoint_lams",

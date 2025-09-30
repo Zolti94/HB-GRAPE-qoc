@@ -1,4 +1,4 @@
-# GRAPE + CRAB QOC
+﻿# GRAPE + CRAB QOC
 
 Code and notebooks for quantum optimal control experiments (GRAPE/CRAB/Adam).
 
@@ -8,18 +8,11 @@ Code and notebooks for quantum optimal control experiments (GRAPE/CRAB/Adam).
 
 ## Baseline data
 
-A reference CRAB baseline is stored in `data/baselines/_baseline_crab/arrays.npz` with metadata alongside it. Notebooks and tests load it through `src.qoc_common_crab.load_baseline_crab()`.
+Deterministic GRAPE baselines are built in memory through `src.baselines.build_grape_baseline` using the `GrapeBaselineConfig` dataclass. Notebooks supply the configuration parameters directly and tests build their own defaults via the same API.
 
-To regenerate the dataset, run:
-
-```
-python scripts/refresh_crab_baseline.py
-```
-
-Optional arguments (`--Nt`, `--T`, `--seed`, `--out`) mirror the notebook defaults.
+When you need to materialise the arrays on disk (e.g., to snapshot an experiment), call `src.baselines.write_baseline(arrays, metadata, out_dir)` after constructing them in Python. No `.npz` files are required for the default workflow.
 
 ## Documentation
 
 - PDF: docs/GRAPE_CRAB_ADAM_Guide.pdf
 - Text: docs/GRAPE_CRAB_ADAM_Guide.md (also mirrored as .txt)
-

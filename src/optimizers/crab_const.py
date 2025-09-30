@@ -1,4 +1,4 @@
-"""Constant-step gradient descent on CRAB coefficients."""
+﻿"""Constant-step gradient descent on GRAPE coefficients."""
 from __future__ import annotations
 
 import time
@@ -9,7 +9,7 @@ import numpy as np
 from ..config import ExperimentConfig
 from ..artifacts import ArtifactPaths
 from .base import (
-    CrabProblem,
+    GrapeControlProblem,
     OptimizationOutput,
     OptimizerState,
     StepStats,
@@ -50,11 +50,11 @@ def _make_step_stats(
 def optimize_const(
     config: ExperimentConfig,
     _paths: ArtifactPaths,
-    problem: CrabProblem,
+    problem: GrapeControlProblem,
     *,
     coeffs0: np.ndarray | None = None,
 ) -> OptimizationOutput:
-    """Run constant-step gradient descent on CRAB coefficients.
+    """Run constant-step gradient descent on GRAPE coefficients.
     
     Parameters
     ----------
@@ -62,8 +62,8 @@ def optimize_const(
     Experiment configuration supplying optimizer options.
     _paths : ArtifactPaths
     Artifact locations (unused by optimizer front-end).
-    problem : CrabProblem
-    CRAB problem definition containing basis and metadata.
+    problem : GrapeControlProblem
+    GRAPE problem definition containing basis and metadata.
     coeffs0 : numpy.ndarray, optional
     Optional initial coefficients overriding ``problem.coeffs_init``.
     
@@ -177,3 +177,4 @@ def optimize_const(
         optimizer_state=optimizer_state,
         extras=extras,
     )
+

@@ -1,4 +1,4 @@
-"""Adam optimizer on CRAB coefficients."""
+﻿"""Adam optimizer on GRAPE coefficients."""
 from __future__ import annotations
 
 import time
@@ -9,7 +9,7 @@ import numpy as np
 from ..config import ExperimentConfig
 from ..artifacts import ArtifactPaths
 from .base import (
-    CrabProblem,
+    GrapeControlProblem,
     OptimizationOutput,
     OptimizerState,
     StepStats,
@@ -50,11 +50,11 @@ def _make_step_stats(
 def optimize_adam(
     config: ExperimentConfig,
     _paths: ArtifactPaths,
-    problem: CrabProblem,
+    problem: GrapeControlProblem,
     *,
     coeffs0: np.ndarray | None = None,
 ) -> OptimizationOutput:
-    """Run Adam on CRAB coefficients and return an :class:`OptimizationOutput`.
+    """Run Adam on GRAPE coefficients and return an :class:`OptimizationOutput`.
     
     Parameters
     ----------
@@ -62,8 +62,8 @@ def optimize_adam(
     Experiment configuration supplying optimizer options.
     _paths : ArtifactPaths
     Artifact locations (unused here; handled by workflow layer).
-    problem : CrabProblem
-    CRAB problem definition containing basis and metadata.
+    problem : GrapeControlProblem
+    GRAPE problem definition containing basis and metadata.
     coeffs0 : numpy.ndarray, optional
     Optional initial coefficient vector overriding ``problem.coeffs_init``.
     
@@ -188,3 +188,4 @@ def optimize_adam(
         optimizer_state=optimizer_state,
         extras=extras,
     )
+

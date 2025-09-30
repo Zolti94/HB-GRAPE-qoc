@@ -1,4 +1,4 @@
-"""Workflow orchestration for optimization experiments (us/MHz units)."""
+﻿"""Workflow orchestration for optimization experiments (us/MHz units)."""
 from __future__ import annotations
 
 import json
@@ -10,7 +10,7 @@ import numpy as np
 from .artifacts import default_root, format_run_name, prepare_run_directory
 from .config import ExperimentConfig
 from .optimizers import available_optimizers, get_optimizer, register_optimizer
-from .optimizers.base import OptimizationOutput, load_crab_problem
+from .optimizers.base import OptimizationOutput, build_grape_problem
 from .result import Result
 from .utils import json_ready
 
@@ -76,7 +76,7 @@ def _build_result(
         "basis_meta": {
             "omega_shape": problem.basis_omega.shape,
             "delta_shape": None if problem.basis_delta is None else problem.basis_delta.shape,
-            "baseline_dir": problem.metadata.get("baseline_dir"),
+            "baseline_name": problem.metadata.get("baseline_name"),
         },
     }
 
@@ -144,7 +144,7 @@ def run_experiment(
         available = ", ".join(available_optimizers()) or "(none registered)"
         raise ValueError(f"Optimizer '{method_name}' not registered. Available: {available}") from exc
 
-    problem, coeffs0, _ = load_crab_problem(experiment_config)
+    problem, coeffs0, _ = build_grape_problem(experiment_config)
     outcome = optimizer(experiment_config, paths, problem, coeffs0=coeffs0)
     if not isinstance(outcome, OptimizationOutput):
         raise TypeError("Optimizer must return OptimizationOutput.")
@@ -174,4 +174,5 @@ def run_experiment(
 
     result = _build_result(final_run_name, experiment_config, problem, outcome, paths.run_dir)
     return result
+
 

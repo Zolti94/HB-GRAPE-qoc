@@ -1,134 +1,113 @@
-"""
-qoc_common_crab.py - Utilities for CRAB-parameterized controls with gradient-based optimizers.
-This module mirrors the shared physics helpers from qoc_common.py but exposes
-helpers to assemble controls from sine bases, enforce grid consistency, and
-differentiate the terminal cost with respect to CRAB coefficients.
-"""
+﻿"""Coefficient-based GRAPE helpers (harmonic bases, gradients, and assembly)."""
 from __future__ import annotations
 
-import json
-from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Mapping, Tuple
 
 import numpy as np
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_CRAB_BASELINE_DIR = PROJECT_ROOT / 'data' / 'baselines' / '_baseline_crab'
+from .baselines import GrapeBaselineConfig, build_grape_baseline
+from .qoc_common import terminal_cost, terminal_cost_and_grad
 
-from src.qoc_common import (
-    terminal_cost,
-    terminal_cost_and_grad,
-)
-
-
-def load_baseline_crab(base_dir: str | Path = DEFAULT_CRAB_BASELINE_DIR) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    """Load CRAB baseline arrays (controls, bases, policy metadata)."""
-    base = Path(base_dir)
-    with np.load(base / "arrays.npz", allow_pickle=True) as arrs_file:
-        arrays = {k: np.asarray(arrs_file[k]) for k in arrs_file.files}
-    with open(base / "metadata.json", "r", encoding="utf-8") as f:
-        policy = json.load(f)
-
-    arrays["t"] = arrays["t"].astype(float)
-    arrays["dt"] = np.asarray(arrays["dt"], dtype=float)
-    arrays["T"] = np.asarray(arrays["T"], dtype=float)
-    arrays["Omega0"] = arrays["Omega0"].astype(float)
-    arrays["Delta0"] = arrays["Delta0"].astype(float)
-    arrays["CRAB_BASIS_OMEGA"] = arrays["CRAB_BASIS_OMEGA"].astype(float)
-    arrays["CRAB_BASIS_DELTA"] = arrays["CRAB_BASIS_DELTA"].astype(float)
-    arrays["CRAB_MODES_OMEGA"] = arrays.get(
-        "CRAB_MODES_OMEGA",
-        np.arange(arrays["CRAB_BASIS_OMEGA"].shape[1], dtype=int),
-    ).astype(int)
-    arrays["CRAB_MODES_DELTA"] = arrays.get(
-        "CRAB_MODES_DELTA",
-        np.arange(arrays["CRAB_BASIS_DELTA"].shape[1], dtype=int),
-    ).astype(int)
-    arrays["rho0"] = arrays["rho0"].astype(np.complex128)
-    arrays["target"] = arrays["target"].astype(np.complex128)
-    arrays["Nt"] = np.asarray(arrays["Nt"], dtype=int)
-    arrays["SEED"] = np.asarray(arrays["SEED"], dtype=int)
-
-    t = arrays["t"]
-    nt = t.shape[0]
-    if arrays["Omega0"].shape[0] != nt or arrays["Delta0"].shape[0] != nt:
-        raise ValueError("Baseline controls must share the same time grid length as t.")
-
-    return arrays, policy
+__all__ = [
+    "build_grape_arrays",
+    "harmonic_sine_basis",
+    "normalize_basis_columns",
+    "build_normalized_harmonic_bases",
+    "assemble_controls_from_coeffs",
+    "terminal_cost_and_grad_coeffs",
+    "terminal_cost",
+]
 
 
-def sine_basis(t: np.ndarray, modes: np.ndarray, T: float) -> np.ndarray:
-    """Return sine basis matrix with zero-valued endpoints for CRAB."""
+def build_grape_arrays(
+    config: GrapeBaselineConfig | Mapping[str, Any],
+) -> Tuple[dict[str, np.ndarray], dict[str, Any]]:
+    """Return baseline arrays/metadata by delegating to :func:`build_grape_baseline`.
+
+    Parameters
+    ----------
+    config : GrapeBaselineConfig or Mapping[str, Any]
+        Baseline specification. ``Mapping`` inputs are converted via
+        :meth:`GrapeBaselineConfig.from_dict`.
+    """
+
+    if not isinstance(config, GrapeBaselineConfig):
+        config = GrapeBaselineConfig.from_dict(dict(config))
+    return build_grape_baseline(config)
+
+
+def harmonic_sine_basis(t: np.ndarray, modes: np.ndarray, duration_us: float) -> np.ndarray:
+    """Return sine basis matrix respecting harmonic indices and duration."""
+
     t = np.asarray(t, dtype=float)
     modes = np.asarray(modes, dtype=float)
-    phase = np.pi * np.outer(t / T, modes)
+    phase = np.pi * np.outer(t / float(duration_us), modes)
     return np.sin(phase)
 
 
-def normalize_basis_columns(basis: np.ndarray, dt: float) -> np.ndarray:
-    """Normalize columns to unit L2 norm under the discrete time grid."""
+def normalize_basis_columns(basis: np.ndarray, dt_us: float) -> np.ndarray:
+    """Column-normalise ``basis`` under the discrete inner product."""
+
     basis = np.asarray(basis, dtype=float)
-    scales = np.sqrt(np.sum(basis * basis, axis=0) * dt)
+    scales = np.sqrt(np.sum(basis * basis, axis=0) * float(dt_us))
     scales[scales == 0.0] = 1.0
     return basis / scales
 
 
-def build_crab_bases(
+def build_normalized_harmonic_bases(
     t: np.ndarray,
     dt: float,
-    T: float,
-    modes_Omega: np.ndarray,
-    modes_Delta: np.ndarray,
+    duration_us: float,
+    modes_omega: np.ndarray,
+    modes_delta: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Construct normalized CRAB bases using the dynamics time grid.
+    """Construct orthonormal sine bases aligned with the supplied time grid."""
 
-    Ensures the same sampling grid (t, dt, T) is used for both dynamics and
-    basis construction. Raises ValueError if inconsistencies are detected.
-    """
     t = np.asarray(t, dtype=float)
     dt = float(np.asarray(dt, dtype=float))
-    T = float(np.asarray(T, dtype=float))
+    duration = float(np.asarray(duration_us, dtype=float))
     nt = t.shape[0]
     if nt < 2:
         raise ValueError("Time grid must contain at least two samples.")
     grid_span = t[0] + dt * (nt - 1)
-    if np.isclose(t[0], 0.0) and np.isclose(t[-1], T):
-        T_basis = T
-    elif np.isclose(grid_span, T):
-        T_basis = T
+    if np.isclose(t[0], 0.0) and np.isclose(t[-1], duration):
+        total = duration
+    elif np.isclose(grid_span, duration):
+        total = duration
     else:
-        raise ValueError("CRAB basis requires the same sampling grid as dynamics.")
+        raise ValueError("Harmonic bases require grid to span the declared duration.")
 
-    basis_Omega = normalize_basis_columns(sine_basis(t, modes_Omega, T_basis), dt)
-    basis_Delta = normalize_basis_columns(sine_basis(t, modes_Delta, T_basis), dt)
-    if basis_Omega.shape[0] != nt or basis_Delta.shape[0] != nt:
-        raise ValueError("CRAB bases must have one row per time sample.")
-    return basis_Omega, basis_Delta
+    basis_omega = normalize_basis_columns(harmonic_sine_basis(t, modes_omega, total), dt)
+    basis_delta = normalize_basis_columns(harmonic_sine_basis(t, modes_delta, total), dt)
+    if basis_omega.shape[0] != nt or basis_delta.shape[0] != nt:
+        raise ValueError("Basis rows must equal the number of time samples.")
+    return basis_omega, basis_delta
 
 
-def controls_from_coeffs(
-    coeffs_Omega: np.ndarray,
-    coeffs_Delta: np.ndarray,
-    Omega0: np.ndarray,
-    Delta0: np.ndarray,
-    basis_Omega: np.ndarray,
-    basis_Delta: np.ndarray,
+def assemble_controls_from_coeffs(
+    coeffs_omega: np.ndarray,
+    coeffs_delta: np.ndarray,
+    omega_base: np.ndarray,
+    delta_base: np.ndarray,
+    basis_omega: np.ndarray,
+    basis_delta: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Assemble CRAB controls from baseline envelopes and coefficient vectors."""
-    Omega = Omega0 + basis_Omega @ coeffs_Omega
-    Delta = Delta0 + basis_Delta @ coeffs_Delta
-    return Omega, Delta
+    """Assemble controls from baseline envelopes and harmonic coefficients."""
+
+    omega = omega_base + basis_omega @ coeffs_omega
+    delta = delta_base + basis_delta @ coeffs_delta
+    return omega, delta
 
 
-def terminal_cost_and_grad_crab(
-    coeffs_Omega: np.ndarray,
-    coeffs_Delta: np.ndarray,
-    Omega0: np.ndarray,
-    Delta0: np.ndarray,
-    basis_Omega: np.ndarray,
-    basis_Delta: np.ndarray,
+def terminal_cost_and_grad_coeffs(
+    coeffs_omega: np.ndarray,
+    coeffs_delta: np.ndarray,
+    omega_base: np.ndarray,
+    delta_base: np.ndarray,
+    basis_omega: np.ndarray,
+    basis_delta: np.ndarray,
     rho0: np.ndarray,
-    dt: float,
+    dt_us: float,
     target: np.ndarray,
     *,
     power_weight: float = 0.0,
@@ -136,40 +115,30 @@ def terminal_cost_and_grad_crab(
     neg_weight: float = 0.0,
     **kwargs: Any,
 ) -> Tuple[float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Return terminal cost, gradients w.r.t. CRAB coefficients, and assembled controls."""
-    if basis_Omega.shape[0] != Omega0.shape[0] or basis_Delta.shape[0] != Delta0.shape[0]:
-        raise ValueError("CRAB bases must share the same number of rows as the baseline envelopes.")
+    """Return cost, gradients (coefficients), and assembled controls."""
 
-    Omega, Delta = controls_from_coeffs(
-        coeffs_Omega,
-        coeffs_Delta,
-        Omega0,
-        Delta0,
-        basis_Omega,
-        basis_Delta,
+    if basis_omega.shape[0] != omega_base.shape[0] or basis_delta.shape[0] != delta_base.shape[0]:
+        raise ValueError("Baseline and basis matrices must share the same number of rows.")
+
+    omega, delta = assemble_controls_from_coeffs(
+        coeffs_omega,
+        coeffs_delta,
+        omega_base,
+        delta_base,
+        basis_omega,
+        basis_delta,
     )
-    cost, gO_time, gD_time = terminal_cost_and_grad(
-        Omega,
-        Delta,
+    cost, grad_omega_time, grad_delta_time = terminal_cost_and_grad(
+        omega,
+        delta,
         rho0,
-        dt,
+        dt_us,
         target,
         power_weight=power_weight,
         neg_kappa=neg_kappa,
         neg_weight=neg_weight,
         **kwargs,
     )
-    gO_coeff = basis_Omega.T @ gO_time
-    gD_coeff = basis_Delta.T @ gD_time
-    return cost, gO_coeff, gD_coeff, Omega, Delta
-
-
-__all__ = [
-    "load_baseline_crab",
-    "sine_basis",
-    "normalize_basis_columns",
-    "build_crab_bases",
-    "controls_from_coeffs",
-    "terminal_cost_and_grad_crab",
-    "terminal_cost",
-]
+    grad_omega_coeff = basis_omega.T @ grad_omega_time
+    grad_delta_coeff = basis_delta.T @ grad_delta_time
+    return cost, grad_omega_coeff, grad_delta_coeff, omega, delta

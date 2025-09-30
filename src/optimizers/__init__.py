@@ -1,4 +1,4 @@
-"""Optimizer registry supporting custom methods."""
+﻿"""Optimizer registry supporting custom methods."""
 from __future__ import annotations
 
 from typing import Callable, Dict
@@ -7,9 +7,9 @@ import numpy as np
 
 from ..artifacts import ArtifactPaths
 from ..config import ExperimentConfig
-from .base import CrabProblem, NDArrayFloat, OptimizationOutput
+from .base import GrapeControlProblem, NDArrayFloat, OptimizationOutput
 
-OptimizerCallable = Callable[[ExperimentConfig, ArtifactPaths, CrabProblem, NDArrayFloat | None], OptimizationOutput]
+OptimizerCallable = Callable[[ExperimentConfig, ArtifactPaths, GrapeControlProblem, NDArrayFloat | None], OptimizationOutput]
 
 __all__ = [
     "OptimizerCallable",
@@ -86,3 +86,4 @@ from .crab_linesearch import optimize_linesearch  # noqa: E402
 register_optimizer("adam", optimize_adam, overwrite=True)
 register_optimizer("const", optimize_const, overwrite=True)
 register_optimizer("linesearch", optimize_linesearch, overwrite=True)
+

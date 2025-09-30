@@ -1,4 +1,4 @@
-"""Experiment configuration models defined in microseconds and megahertz."""
+﻿"""Experiment configuration models defined in microseconds and megahertz."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -12,24 +12,30 @@ __all__ = [
     "override_from_dict",
 ]
 
+
 @dataclass(slots=True)
 class BaselineSpec:
-    """Identify baseline assets stored in microseconds (us) and megahertz (MHz)."""
+    """Identify deterministic baseline parameters used to seed GRAPE runs."""
 
     name: str = "default"
-    path: Path | None = None
+    params: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {"name": self.name, "path": str(self.path) if self.path is not None else None}
+        payload: dict[str, Any] = {"name": self.name}
+        if self.params is not None:
+            payload["params"] = dict(self.params)
+        else:
+            payload["params"] = None
+        return payload
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any] | None) -> "BaselineSpec":
         if not payload:
             return cls()
         name = str(payload.get("name", "default"))
-        raw_path = payload.get("path")
-        path = Path(raw_path) if raw_path else None
-        return cls(name=name, path=path)
+        raw_params = payload.get("params")
+        params = None if raw_params is None else dict(raw_params)
+        return cls(name=name, params=params)
 
 
 @dataclass(slots=True)
@@ -108,6 +114,7 @@ class ExperimentConfig:
     def slug(self) -> str:
         base = self.baseline.name if self.baseline.name else "run"
         return (self.run_name or base).replace(" ", "-").lower()
+
 
 def _coerce_to_config(config: ExperimentConfig | Mapping[str, Any]) -> ExperimentConfig:
     """Return an ExperimentConfig from either an existing config or mapping."""

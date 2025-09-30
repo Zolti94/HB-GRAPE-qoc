@@ -1,17 +1,17 @@
-"""Shared optimizer utilities for CRAB coefficient optimizers (us / rad-per-us)."""
+"""Shared optimizer utilities for GRAPE coefficient optimizers (us / rad-per-us)."""
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, Optional
 
 import numpy as np
 import numpy.typing as npt
 
+from ..baselines import GrapeBaselineConfig, build_grape_baseline
 from ..config import ExperimentConfig, PenaltyConfig
 from ..controls import coeffs_to_control, crab_linear_basis
-from ..cost import accumulate_cost_and_grads, penalty_terms#
+from ..cost import accumulate_cost_and_grads, penalty_terms
 from ..physics import propagate_piecewise_const, fidelity_pure
 from ..crab_notebook_utils import ground_state_projectors
 
@@ -22,20 +22,14 @@ __all__ = [
     "NDArrayFloat",
     "StepStats",
     "OptimizerState",
-    "CrabProblem",
+    "GrapeControlProblem",
     "OptimizationOutput",
     "clip_gradients",
     "safe_norm",
-    "load_crab_problem",
+    "build_grape_problem",
     "evaluate_problem",
     "history_to_arrays",
 ]
-
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
-_DEFAULT_BASELINES: Dict[str, Path] = {
-    "default": _PROJECT_ROOT / "data" / "baselines" / "_baseline_crab",
-    "crab": _PROJECT_ROOT / "data" / "baselines" / "_baseline_crab",
-}
 
 SIGMA_X = np.array([[0.0, 1.0], [1.0, 0.0]], dtype=np.complex128)
 SIGMA_Z = np.array([[1.0, 0.0], [0.0, -1.0]], dtype=np.complex128)
@@ -170,8 +164,8 @@ class OptimizerState:
 
 
 @dataclass(slots=True)
-class CrabProblem:
-    """Problem definition capturing bases, baselines, and metadata for CRAB.
+class GrapeControlProblem:
+    """Problem definition capturing bases, baselines, and metadata for GRAPE.
 
     Attributes
     ----------
@@ -182,7 +176,7 @@ class CrabProblem:
     omega_base, delta_base : numpy.ndarray
         Baseline control envelopes.
     basis_omega, basis_delta : numpy.ndarray
-        CRAB basis matrices mapping coefficients to controls.
+        Harmonic basis matrices mapping coefficients to controls.
     psi0, psi_target : numpy.ndarray
         Initial and target states for optimisation.
     penalties : PenaltyConfig
@@ -328,38 +322,8 @@ def safe_norm(arr: NDArrayFloat) -> float:
     return float(np.linalg.norm(vec))
 
 
-def _resolve_baseline_dir(config: ExperimentConfig) -> Path:
 
-    """Identify the baseline directory implied by ``config`` or defaults."""
-    spec = config.baseline
-    if spec.path is not None:
-        return Path(spec.path)
-    name = (spec.name or "default").lower()
-    if name in _DEFAULT_BASELINES:
-        return _DEFAULT_BASELINES[name]
-    candidate = _PROJECT_ROOT / "data" / "baselines" / name
-    if candidate.exists():
-        return candidate
-    raise FileNotFoundError(f"Baseline '{spec.name}' not found. Provide baseline.path in config.")
-
-
-def _load_arrays(base_dir: Path) -> tuple[Dict[str, Any], Dict[str, Any]]:
-
-    """Load baseline arrays and metadata from disk, returning copies."""
-    arrays_path = base_dir / "arrays.npz"
-    metadata_path = base_dir / "metadata.json"
-    with np.load(arrays_path, allow_pickle=True) as npz:
-        arrays = {k: np.array(npz[k]) for k in npz.files}
-    metadata: Dict[str, Any] = {}
-    if metadata_path.exists():
-        import json
-
-        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-    metadata["baseline_dir"] = str(base_dir)
-    return arrays, metadata
-
-
-def _initial_coefficients(problem: CrabProblem, options: Mapping[str, Any]) -> NDArrayFloat:
+def _initial_coefficients(problem: GrapeControlProblem, options: Mapping[str, Any]) -> NDArrayFloat:
 
     """Derive initial coefficients while honouring user overrides."""
     coeffs = problem.coeffs_init
@@ -381,11 +345,17 @@ def _initial_coefficients(problem: CrabProblem, options: Mapping[str, Any]) -> N
     return coeffs.astype(np.float64, copy=True)
 
 
-def load_crab_problem(config: ExperimentConfig) -> tuple[CrabProblem, NDArrayFloat, Dict[str, Any]]:
+def build_grape_problem(config: ExperimentConfig) -> tuple[GrapeControlProblem, NDArrayFloat, Dict[str, Any]]:
 
-    """Construct a :class:`CrabProblem` along with initial coefficients and metadata."""
-    base_dir = _resolve_baseline_dir(config)
-    arrays, metadata = _load_arrays(base_dir)
+    """Construct a :class:`GrapeControlProblem` along with initial coefficients and metadata."""
+    spec = config.baseline
+    if spec.params is None:
+        raise ValueError("ExperimentConfig.baseline.params must define a GRAPE baseline.")
+    baseline_cfg = GrapeBaselineConfig.from_dict(spec.params)
+    arrays, baseline_meta = build_grape_baseline(baseline_cfg)
+    metadata = dict(baseline_meta)
+    metadata.setdefault("baseline_name", spec.name)
+    metadata.setdefault("baseline_config", baseline_cfg.to_dict())
 
     t_us = arrays["t"].astype(np.float64)
     dt_us = float(np.asarray(arrays.get("dt", np.diff(t_us)).squeeze(), dtype=np.float64))
@@ -471,7 +441,7 @@ def load_crab_problem(config: ExperimentConfig) -> tuple[CrabProblem, NDArrayFlo
 
     coeffs_init = np.zeros(basis_omega.shape[1] + (basis_delta.shape[1] if basis_delta is not None else 0), dtype=np.float64)
 
-    problem = CrabProblem(
+    problem = GrapeControlProblem(
         t_us=t_us,
         dt_us=dt_us,
         omega_base=omega_base,
@@ -508,7 +478,7 @@ def load_crab_problem(config: ExperimentConfig) -> tuple[CrabProblem, NDArrayFlo
 
 
 def _evaluate_terminal(
-    problem: CrabProblem,
+    problem: GrapeControlProblem,
     omega: NDArrayFloat,
     delta: Optional[NDArrayFloat],
     neg_epsilon: float,
@@ -551,7 +521,7 @@ def _evaluate_terminal(
 
 
 def _evaluate_path(
-    problem: CrabProblem,
+    problem: GrapeControlProblem,
     omega: NDArrayFloat,
     delta: Optional[NDArrayFloat],
 ) -> tuple[Dict[str, float], NDArrayFloat, Dict[str, Any]]:
@@ -637,7 +607,7 @@ def _evaluate_path(
 
 
 def _evaluate_ensemble(
-    problem: CrabProblem,
+    problem: GrapeControlProblem,
     omega: NDArrayFloat,
     delta: Optional[NDArrayFloat],
     neg_epsilon: float,
@@ -761,7 +731,7 @@ def _evaluate_ensemble(
 
 
 def evaluate_problem(
-    problem: CrabProblem,
+    problem: GrapeControlProblem,
     coeffs: NDArrayFloat,
     *,
     neg_epsilon: float = 1e-6,
