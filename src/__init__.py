@@ -47,6 +47,14 @@ from .plotting import (
 )
 from .utils import ensure_dir, json_ready, require_real_finite, set_random_seed, time_block
 
+from .notebook_runners import (
+    BaselineArrays,
+    prepare_baseline,
+    coerce_vector,
+    build_base_config,
+    method_options,
+)
+
 __all__ = [
     "BaselineSpec",
     "BasisSpec",
@@ -93,4 +101,9 @@ __all__ = [
     "time_block",
     "total_cost",
     "write_baseline",
+    "BaselineArrays",
+    "build_base_config",
+    "coerce_vector",
+    "method_options",
+    "prepare_baseline",
 ]

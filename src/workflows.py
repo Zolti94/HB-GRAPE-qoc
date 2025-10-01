@@ -10,7 +10,11 @@ import numpy as np
 from .artifacts import default_root, format_run_name, prepare_run_directory
 from .config import ExperimentConfig
 from .optimizers import available_optimizers, get_optimizer, register_optimizer
-from .optimizers.base import OptimizationOutput, build_grape_problem
+from .optimizers.base import (
+    OptimizationOutput,
+    ProgressCallback,
+    build_grape_problem,
+)
 from .result import Result
 from .utils import json_ready
 
@@ -102,6 +106,7 @@ def run_experiment(
     run_name: str | None = None,
     timestamp: datetime | None = None,
     exist_ok: bool = False,
+    progress_callback: ProgressCallback | None = None,
 ) -> Result:
     """Run an experiment using a registered optimizer and persist artifacts.
 
@@ -117,6 +122,10 @@ def run_experiment(
         Timestamp injected into the run name; ``datetime.utcnow`` when omitted.
     exist_ok : bool, optional
         Allow reuse of an existing run directory (helpful for reruns).
+
+    progress_callback : ProgressCallback, optional
+        Callable invoked after each optimizer iteration; receives StepStats and
+        OptimizerState.
 
     Returns
     -------
@@ -145,7 +154,13 @@ def run_experiment(
         raise ValueError(f"Optimizer '{method_name}' not registered. Available: {available}") from exc
 
     problem, coeffs0, _ = build_grape_problem(experiment_config)
-    outcome = optimizer(experiment_config, paths, problem, coeffs0=coeffs0)
+    outcome = optimizer(
+        experiment_config,
+        paths,
+        problem,
+        coeffs0=coeffs0,
+        progress_callback=progress_callback,
+    )
     if not isinstance(outcome, OptimizationOutput):
         raise TypeError("Optimizer must return OptimizationOutput.")
 

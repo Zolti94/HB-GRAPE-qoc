@@ -12,6 +12,7 @@ from .base import (
     GrapeControlProblem,
     OptimizationOutput,
     OptimizerState,
+    ProgressCallback,
     StepStats,
     clip_gradients,
     evaluate_problem,
@@ -53,6 +54,7 @@ def optimize_linesearch(
     problem: GrapeControlProblem,
     *,
     coeffs0: np.ndarray | None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> OptimizationOutput:
     """Run Armijo backtracking line search on GRAPE coefficients.
     
@@ -105,12 +107,16 @@ def optimize_linesearch(
             status = "failed_nonfinite"
             stats = _make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls)
             state.record(stats)
+            if progress_callback is not None:
+                progress_callback(stats, state)
             break
 
         if grad_norm <= grad_tol:
             status = "converged_grad"
             stats = _make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls)
             state.record(stats)
+            if progress_callback is not None:
+                progress_callback(stats, state)
             break
 
         if prev_total is not None:
@@ -120,6 +126,8 @@ def optimize_linesearch(
                 status = "converged_rtol"
                 stats = _make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls)
                 state.record(stats)
+                if progress_callback is not None:
+                    progress_callback(stats, state)
                 break
 
         clipped_grad = clip_gradients(grad_coeffs, max_norm=grad_clip)
@@ -130,6 +138,8 @@ def optimize_linesearch(
             status = "armijo_direction"
             stats = _make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls)
             state.record(stats)
+            if progress_callback is not None:
+                progress_callback(stats, state)
             break
 
         alpha = alpha0
@@ -159,12 +169,16 @@ def optimize_linesearch(
             status = "armijo_failed"
             stats = _make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls_this_iter)
             state.record(stats)
+            if progress_callback is not None:
+                progress_callback(stats, state)
             break
 
         coeffs = candidate_coeffs
         step_norm = safe_norm(alpha * direction)
         stats = _make_step_stats(iteration, cost_dict, grad_norm, step_norm, alpha, time.perf_counter() - iter_start, calls_this_iter)
         state.record(stats)
+        if progress_callback is not None:
+            progress_callback(stats, state)
         prev_total = float(candidate_cost.get("total", 0.0))
 
         state.runtime_s = time.perf_counter() - start_time
