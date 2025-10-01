@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterable, Mapping, Optional
+from typing import Any, Dict, Iterable, Mapping, Optional
 
 import numpy as np
 import numpy.typing as npt
@@ -21,7 +21,6 @@ NDArrayComplex = npt.NDArray[np.complex128]
 __all__ = [
     "NDArrayFloat",
     "StepStats",
-    "ProgressCallback",
     "OptimizerState",
     "GrapeControlProblem",
     "OptimizationOutput",
@@ -102,9 +101,6 @@ class StepStats:
     lr: float
     wall_time_s: float
     calls_per_iter: int
-
-
-ProgressCallback = Callable[[StepStats, "OptimizerState"], None]
 
 
 def _init_history() -> Dict[str, list[Any]]:

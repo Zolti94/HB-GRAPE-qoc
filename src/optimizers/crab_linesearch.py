@@ -12,7 +12,6 @@ from .base import (
     GrapeControlProblem,
     OptimizationOutput,
     OptimizerState,
-    ProgressCallback,
     StepStats,
     clip_gradients,
     evaluate_problem,
@@ -54,7 +53,6 @@ def optimize_linesearch(
     problem: GrapeControlProblem,
     *,
     coeffs0: np.ndarray | None = None,
-    progress_callback: ProgressCallback | None = None,
 ) -> OptimizationOutput:
     """Run Armijo backtracking line search on GRAPE coefficients.
     
@@ -177,8 +175,6 @@ def optimize_linesearch(
         step_norm = safe_norm(alpha * direction)
         stats = _make_step_stats(iteration, cost_dict, grad_norm, step_norm, alpha, time.perf_counter() - iter_start, calls_this_iter)
         state.record(stats)
-        if progress_callback is not None:
-            progress_callback(stats, state)
         prev_total = float(candidate_cost.get("total", 0.0))
 
         state.runtime_s = time.perf_counter() - start_time

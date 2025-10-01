@@ -7,20 +7,9 @@ import numpy as np
 
 from ..artifacts import ArtifactPaths
 from ..config import ExperimentConfig
-from .base import (
-    GrapeControlProblem,
-    NDArrayFloat,
-    OptimizationOutput,
-    ProgressCallback,
-)
+from .base import GrapeControlProblem, NDArrayFloat, OptimizationOutput
 
-OptimizerCallable = Callable[[
-    ExperimentConfig,
-    ArtifactPaths,
-    GrapeControlProblem,
-    NDArrayFloat | None,
-    ProgressCallback | None,
-], OptimizationOutput]
+OptimizerCallable = Callable[[ExperimentConfig, ArtifactPaths, GrapeControlProblem, NDArrayFloat | None], OptimizationOutput]
 
 __all__ = [
     "OptimizerCallable",

@@ -12,7 +12,6 @@ from .base import (
     GrapeControlProblem,
     OptimizationOutput,
     OptimizerState,
-    ProgressCallback,
     StepStats,
     clip_gradients,
     evaluate_problem,
@@ -54,7 +53,6 @@ def optimize_adam(
     problem: GrapeControlProblem,
     *,
     coeffs0: np.ndarray | None = None,
-    progress_callback: ProgressCallback | None = None,
 ) -> OptimizationOutput:
     """Run Adam on GRAPE coefficients and return an :class:`OptimizationOutput`.
     
@@ -146,8 +144,6 @@ def optimize_adam(
 
         stats = _make_step_stats(iteration, cost_dict, grad_norm, step_norm, lr_t, time.perf_counter() - iter_start, calls)
         state.record(stats)
-        if progress_callback is not None:
-            progress_callback(stats, state)
         prev_total = total_cost
 
         state.runtime_s = time.perf_counter() - start_time

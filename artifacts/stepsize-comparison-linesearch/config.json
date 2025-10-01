@@ -76,15 +76,15 @@
   "artifacts_root": "artifacts",
   "random_seed": null,
   "optimizer_options": {
-    "max_iters": 200,
+    "max_iters": 2000,
     "grad_tol": 1e-07,
     "rtol": 1e-07,
     "max_time_s": 300.0,
     "optimize_delta": false,
-    "alpha0": 0.1,
+    "alpha0": 1.0,
     "ls_beta": 0.5,
     "ls_sigma": 0.0001,
-    "ls_max_backtracks": 12,
+    "ls_max_backtracks": 15,
     "method": "linesearch"
   },
   "penalties": {
