@@ -11,7 +11,12 @@ import numpy.typing as npt
 from ..baselines import GrapeBaselineConfig, build_grape_baseline
 from ..config import ExperimentConfig, PenaltyConfig
 from ..controls import coeffs_to_control, crab_linear_basis
-from ..cost import accumulate_cost_and_grads, penalty_terms
+from ..cost import (
+    accumulate_cost_and_grads,
+    penalty_terms,
+    grad_power_fluence,
+    power_fluence_penalty,
+)
 from ..physics import propagate_piecewise_const, fidelity_pure
 from ..crab_notebook_utils import ground_state_projectors
 
@@ -483,37 +488,100 @@ def _evaluate_terminal(
     delta: Optional[NDArrayFloat],
     neg_epsilon: float,
 ) -> tuple[Dict[str, float], NDArrayFloat, Dict[str, Any]]:
-    """Evaluate terminal objective value and gradients for given controls."""
-    delta_eval = delta if delta is not None else (
-        np.asarray(problem.delta_base, dtype=np.float64) if problem.delta_base is not None else np.zeros_like(omega)
+    """Evaluate terminal objective value and gradients for given controls.
+
+    If detuning is not being optimised, apply the power penalty to the
+    optimisable channel(s) only so the optimizer can effectively reduce the
+    total objective (avoid charging a fixed baseline term).
+    """
+    delta_eval = (
+        delta
+        if delta is not None
+        else (
+            np.asarray(problem.delta_base, dtype=np.float64)
+            if problem.delta_base is not None
+            else np.zeros_like(omega)
+        )
     )
-    raw_cost, grad_dict = accumulate_cost_and_grads(
-        omega,
-        delta_eval,
-        problem.dt_us,
-        psi0=problem.psi0,
-        psi_target=problem.psi_target,
-        w_power=problem.penalties.power_weight,
-        w_neg=problem.penalties.neg_weight,
-        neg_epsilon=neg_epsilon,
-    )
-    cost = {
-        "terminal": float(raw_cost.get("terminal", 0.0)),
-        "path": 0.0,
-        "ensemble": 0.0,
-        "power_penalty": float(raw_cost.get("power_penalty", 0.0)),
-        "neg_penalty": float(raw_cost.get("neg_penalty", 0.0)),
-        "total": float(raw_cost.get("total", 0.0)),
-        "terminal_eval": float(raw_cost.get("terminal", 0.0)),
-    }
-    grad_coeffs = problem.gradients_to_coeffs(
-        grad_dict.get("dJ/dOmega", np.zeros_like(omega)),
-        grad_dict.get("dJ/dDelta") if problem.delta_slice is not None else None,
-    )
+
+    if problem.delta_slice is None:
+        # Penalise only Omega when Delta is not optimised.
+        raw_cost, grad_dict = accumulate_cost_and_grads(
+            omega,
+            delta_eval,
+            problem.dt_us,
+            psi0=problem.psi0,
+            psi_target=problem.psi_target,
+            w_power=0.0,
+            w_neg=problem.penalties.neg_weight,
+            neg_epsilon=neg_epsilon,
+        )
+        # Add Omega-only power penalty and its gradient.
+        power_dict = power_fluence_penalty(
+            omega,
+            np.zeros_like(omega),
+            problem.dt_us,
+            problem.penalties.power_weight,
+        )
+        grad_power = grad_power_fluence(
+            omega,
+            np.zeros_like(omega),
+            problem.dt_us,
+            problem.penalties.power_weight,
+        )
+        gO_time = grad_dict.get("dJ/dOmega", np.zeros_like(omega)) + grad_power.get(
+            "dJ/dOmega", np.zeros_like(omega)
+        )
+        gD_time = grad_dict.get("dJ/dDelta", np.zeros_like(delta_eval))
+        cost = {
+            "terminal": float(raw_cost.get("terminal", 0.0)),
+            "path": 0.0,
+            "ensemble": 0.0,
+            "power_penalty": float(power_dict.get("power_penalty", 0.0)),
+            "neg_penalty": float(raw_cost.get("neg_penalty", 0.0)),
+            "total": float(
+                raw_cost.get("terminal", 0.0)
+                + raw_cost.get("neg_penalty", 0.0)
+                + power_dict.get("power_penalty", 0.0)
+            ),
+            "terminal_eval": float(raw_cost.get("terminal", 0.0)),
+        }
+        grad_coeffs = problem.gradients_to_coeffs(gO_time, None)
+        grad_time = {"dJ/dOmega": gO_time, "dJ/dDelta": np.zeros_like(delta_eval)}
+    else:
+        # Penalise both channels when Delta is optimised.
+        raw_cost, grad_dict = accumulate_cost_and_grads(
+            omega,
+            delta_eval,
+            problem.dt_us,
+            psi0=problem.psi0,
+            psi_target=problem.psi_target,
+            w_power=problem.penalties.power_weight,
+            w_neg=problem.penalties.neg_weight,
+            neg_epsilon=neg_epsilon,
+        )
+        cost = {
+            "terminal": float(raw_cost.get("terminal", 0.0)),
+            "path": 0.0,
+            "ensemble": 0.0,
+            "power_penalty": float(raw_cost.get("power_penalty", 0.0)),
+            "neg_penalty": float(raw_cost.get("neg_penalty", 0.0)),
+            "total": float(raw_cost.get("total", 0.0)),
+            "terminal_eval": float(raw_cost.get("terminal", 0.0)),
+        }
+        grad_coeffs = problem.gradients_to_coeffs(
+            grad_dict.get("dJ/dOmega", np.zeros_like(omega)),
+            grad_dict.get("dJ/dDelta"),
+        )
+        grad_time = {
+            "dJ/dOmega": grad_dict.get("dJ/dOmega", np.zeros_like(omega)),
+            "dJ/dDelta": grad_dict.get("dJ/dDelta", np.zeros_like(delta_eval)),
+        }
+
     extras = {
         "omega": omega,
         "delta": delta,
-        "grad_time": grad_dict,
+        "grad_time": grad_time,
         "oracle_calls": 1,
         "terminal_infidelity": cost["terminal"],
     }

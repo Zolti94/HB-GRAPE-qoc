@@ -1,10 +1,10 @@
 {
   "baseline": {
-    "name": "stepsize-comparison",
+    "name": "tmp",
     "params": {
       "time_grid": {
         "duration_us": 0.1,
-        "num_points": 2001,
+        "num_points": 201,
         "start_us": 0.0
       },
       "omega": {
@@ -14,7 +14,7 @@
         "options": {}
       },
       "basis": {
-        "num_omega": 6,
+        "num_omega": 4,
         "num_delta": 0,
         "omega_harmonics": null,
         "delta_harmonics": null
@@ -63,33 +63,21 @@
           }
         ]
       ],
-      "extra_metadata": {},
-      "delta": {
-        "kind": "linear_chirp",
-        "area_pi": 0.0,
-        "amplitude_scale": 40.0,
-        "options": {}
-      }
+      "extra_metadata": {}
     }
   },
-  "run_name": "stepsize-comparison",
-  "artifacts_root": "artifacts",
+  "run_name": "tmp-test",
+  "artifacts_root": "tmp_artifacts",
   "random_seed": null,
   "optimizer_options": {
-    "max_iters": 2000,
-    "grad_tol": 1e-07,
-    "rtol": 1e-07,
-    "max_time_s": 300.0,
-    "optimize_delta": false,
-    "alpha0": 1.0,
-    "ls_beta": 0.5,
-    "ls_sigma": 1e-08,
-    "ls_max_backtracks": 15,
-    "method": "linesearch"
+    "method": "const",
+    "max_iters": 1,
+    "learning_rate": 0.0,
+    "optimize_delta": false
   },
   "penalties": {
-    "power_weight": 0.0001,
-    "neg_weight": 1.0,
+    "power_weight": 1.0,
+    "neg_weight": 0.0,
     "neg_kappa": 10.0
   },
   "metadata": {

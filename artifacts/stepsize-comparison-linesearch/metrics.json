@@ -6,7 +6,7 @@
   "neg_penalty": 9.609060278190476e-13,
   "total": 0.01889962469253943,
   "terminal_eval": 0.0011942678720354705,
-  "runtime_s": 0.21556130005046725,
+  "runtime_s": 0.19801739999093115,
   "total_backtracks": 0,
   "status": "converged_rtol",
   "objective": "terminal",
