@@ -102,16 +102,12 @@ def optimize_const(
             status = "failed_nonfinite"
             stats = _make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls)
             state.record(stats)
-            if progress_callback is not None:
-                progress_callback(stats, state)
             break
 
         if grad_norm <= grad_tol:
             status = "converged_grad"
             stats = _make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls)
             state.record(stats)
-            if progress_callback is not None:
-                progress_callback(stats, state)
             break
 
         if prev_total is not None:
@@ -121,8 +117,6 @@ def optimize_const(
                 status = "converged_rtol"
                 stats = _make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls)
                 state.record(stats)
-                if progress_callback is not None:
-                    progress_callback(stats, state)
                 break
 
         lr_t = base_lr * (lr_decay ** (iteration - 1))
