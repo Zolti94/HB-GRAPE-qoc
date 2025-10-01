@@ -15,7 +15,7 @@
       },
       "basis": {
         "num_omega": 6,
-        "num_delta": 4,
+        "num_delta": 0,
         "omega_harmonics": null,
         "delta_harmonics": null
       },
@@ -80,7 +80,7 @@
     "grad_tol": 1e-07,
     "rtol": 1e-07,
     "max_time_s": 300.0,
-    "optimize_delta": true,
+    "optimize_delta": false,
     "learning_rate": 0.05,
     "beta1": 0.9,
     "beta2": 0.999,
@@ -88,7 +88,7 @@
     "method": "adam"
   },
   "penalties": {
-    "power_weight": 0.1,
+    "power_weight": 0.0001,
     "neg_weight": 1.0,
     "neg_kappa": 10.0
   },
