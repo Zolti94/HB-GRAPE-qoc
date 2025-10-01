@@ -1,6 +1,6 @@
 {
   "baseline": {
-    "name": "stepsize-comparison-baseline",
+    "name": "stepsize-comparison",
     "params": {
       "time_grid": {
         "duration_us": 0.1,
@@ -77,8 +77,8 @@
   "random_seed": null,
   "optimizer_options": {
     "max_iters": 200,
-    "grad_tol": 1e-07,
-    "rtol": 1e-07,
+    "grad_tol": 0.0001,
+    "rtol": 1e-05,
     "max_time_s": 300.0,
     "optimize_delta": false,
     "alpha0": 0.1,
@@ -88,8 +88,8 @@
     "method": "linesearch"
   },
   "penalties": {
-    "power_weight": 0.0001,
-    "neg_weight": 1.0,
+    "power_weight": 0.0,
+    "neg_weight": 0.0,
     "neg_kappa": 10.0
   },
   "metadata": {
