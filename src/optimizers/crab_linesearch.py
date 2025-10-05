@@ -1,4 +1,4 @@
-﻿"""Armijo backtracking line-search optimizer for GRAPE coefficients."""
+"""Armijo backtracking line-search optimizer for GRAPE coefficients."""
 from __future__ import annotations
 
 import time
@@ -165,7 +165,7 @@ def optimize_linesearch(
         step_norm = safe_norm(alpha * direction)
         stats = _make_step_stats(iteration, cost_dict, grad_norm, step_norm, alpha, time.perf_counter() - iter_start, calls_this_iter)
         state.record(stats)
-        prev_total = float(candidate_cost.get("total", 0.0))
+        prev_total = total_cost
 
         state.runtime_s = time.perf_counter() - start_time
         if max_time_s is not None and state.runtime_s >= float(max_time_s):
