@@ -9,7 +9,7 @@
       },
       "omega": {
         "kind": "polynomial",
-        "area_pi": 1.0,
+        "area_pi": 4.0,
         "amplitude_scale": null,
         "options": {}
       },

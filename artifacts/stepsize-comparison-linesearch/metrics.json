@@ -1,16 +1,16 @@
 {
-  "terminal": 0.0011920648988530402,
+  "terminal": 0.9105248556167217,
   "path": 0.0,
   "ensemble": 0.0,
-  "power_penalty": 0.01770269930608285,
-  "neg_penalty": 9.609060278190476e-13,
-  "total": 0.018894764205896794,
-  "terminal_eval": 0.0011920648988530402,
-  "runtime_s": 0.1886993998195976,
+  "power_penalty": 0.20289889163238622,
+  "neg_penalty": 9.609060272605016e-13,
+  "total": 1.1134237472500688,
+  "terminal_eval": 0.9105248556167217,
+  "runtime_s": 0.18982870015315711,
   "total_backtracks": 0,
   "status": "converged_rtol",
   "objective": "terminal",
-  "terminal_infidelity": 0.0011920648988530402,
+  "terminal_infidelity": 0.9105248556167217,
   "path_infidelity": 0.0,
   "ensemble_infidelity": 0.0
 }
