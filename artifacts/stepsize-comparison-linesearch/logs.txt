@@ -1,1 +1,1 @@
-status=converged_rtol total=0.013558
+status=converged_rtol total=0.018895

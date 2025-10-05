@@ -15,7 +15,7 @@
       },
       "basis": {
         "num_omega": 6,
-        "num_delta": 0,
+        "num_delta": 4,
         "omega_harmonics": null,
         "delta_harmonics": null
       },
@@ -80,7 +80,7 @@
     "grad_tol": 1e-07,
     "rtol": 1e-07,
     "max_time_s": 300.0,
-    "optimize_delta": false,
+    "optimize_delta": true,
     "alpha0": 1.0,
     "ls_beta": 0.5,
     "ls_sigma": 1e-08,
