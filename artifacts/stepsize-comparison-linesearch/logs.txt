@@ -1,1 +1,1 @@
-status=converged_rtol total=0.021916
+status=time_limit total=0.024841
