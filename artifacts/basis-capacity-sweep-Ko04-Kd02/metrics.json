@@ -1,0 +1,15 @@
+{
+  "terminal": 0.0001173302098533835,
+  "path": 0.0,
+  "ensemble": 0.0,
+  "power_penalty": 0.020808578669400134,
+  "neg_penalty": 1.8000096090603013e-07,
+  "total": 0.020926088880214425,
+  "terminal_eval": 0.0001173302098533835,
+  "runtime_s": 24.86108299996704,
+  "status": "max_iters",
+  "objective": "terminal",
+  "terminal_infidelity": 0.0001173302098533835,
+  "path_infidelity": 0.0,
+  "ensemble_infidelity": 0.0
+}

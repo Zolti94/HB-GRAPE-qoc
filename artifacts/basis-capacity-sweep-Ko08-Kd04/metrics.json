@@ -6,7 +6,7 @@
   "neg_penalty": 9.609060034723527e-13,
   "total": 0.005989329886595888,
   "terminal_eval": 5.891221381948419e-06,
-  "runtime_s": 24.33105290005915,
+  "runtime_s": 24.294143799925223,
   "status": "max_iters",
   "objective": "terminal",
   "terminal_infidelity": 5.891221381948419e-06,

@@ -63,7 +63,13 @@
           }
         ]
       ],
-      "extra_metadata": {}
+      "extra_metadata": {},
+      "delta": {
+        "kind": "linear_chirp",
+        "area_pi": 0.0,
+        "amplitude_scale": 40.0,
+        "options": {}
+      }
     }
   },
   "run_name": "basis-capacity-sweep-Ko04-Kd00",

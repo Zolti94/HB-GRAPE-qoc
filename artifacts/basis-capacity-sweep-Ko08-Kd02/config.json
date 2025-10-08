@@ -1,6 +1,6 @@
 {
   "baseline": {
-    "name": "basis-capacity-sweep-Ko24-Kd00",
+    "name": "basis-capacity-sweep-Ko08-Kd02",
     "params": {
       "time_grid": {
         "duration_us": 0.1,
@@ -14,8 +14,8 @@
         "options": {}
       },
       "basis": {
-        "num_omega": 24,
-        "num_delta": 0,
+        "num_omega": 8,
+        "num_delta": 2,
         "omega_harmonics": null,
         "delta_harmonics": null
       },
@@ -72,7 +72,7 @@
       }
     }
   },
-  "run_name": "basis-capacity-sweep-Ko24-Kd00",
+  "run_name": "basis-capacity-sweep-Ko08-Kd02",
   "artifacts_root": "artifacts",
   "random_seed": null,
   "optimizer_options": {
@@ -80,7 +80,7 @@
     "grad_tol": 1e-10,
     "rtol": 1e-10,
     "max_time_s": 300.0,
-    "optimize_delta": false,
+    "optimize_delta": true,
     "learning_rate": 0.5,
     "beta1": 0.9,
     "beta2": 0.999,
