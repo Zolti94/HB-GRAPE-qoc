@@ -28,6 +28,15 @@ This repository collects optimization notebooks and supporting modules for Harmo
 3. **Optimizer Invocation** - `run_experiment` dispatches to the registered optimizer (e.g., `optimize_const`, `optimize_linesearch`, `optimize_adam`) and persists artifacts.
 4. **Post-Processing** - Notebooks extract histories, produce plots, and serialize summaries (CSV/JSON/NPZ) for subsequent analysis.
 
+## Virtual Environment
+
+The repository expects a local Python virtual environment (`.venv`) with all required dependencies installed (see `requirements.txt`). Activate the environment before running notebooks or CLI scripts:
+
+- **Windows (PowerShell):** `.venv\Scripts\Activate.ps1`
+- **macOS/Linux (bash/zsh):** `source .venv/bin/activate`
+
+After activation, launch JupyterLab/Notebook or execute Python modules through `.venv\Scripts\python` to ensure the correct dependency set (e.g., NumPy, SciPy, Matplotlib, Jupyter, etc.).
+
 ## Artifact Outputs
 
 Optimizers automatically persist:
@@ -36,3 +45,4 @@ Optimizers automatically persist:
 - Notebook-specific exports (e.g., `artifacts/basis_capacity_sweep/summary.csv`).
 
 Users can modify per-agent parameters (learning rate, penalties, baseline shapes), rerun the Stage 1 setup, and regenerate downstream plots and heatmaps to compare HB-GRAPE strategies quickly.
+
