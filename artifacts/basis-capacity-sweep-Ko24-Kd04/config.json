@@ -65,7 +65,7 @@
       ],
       "extra_metadata": {},
       "delta": {
-        "kind": "linear_chirp",
+        "kind": "polynomial_chirp",
         "area_pi": 0.0,
         "amplitude_scale": 40.0,
         "options": {}
