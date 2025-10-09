@@ -115,7 +115,7 @@ def negativity_smooth_penalty(
 
     omega = np.asarray(omega, dtype=np.float64)
     eps = float(epsilon)
-    z = np.clip(omega / eps, -60.0, 60.0)
+    z = omega / eps
     soft = eps * np.logaddexp(0.0, -z)
     penalty = float(w_neg) * float(np.sum(soft * soft, dtype=np.float64))
     return {"neg_penalty": penalty}
@@ -221,7 +221,7 @@ def grad_negativity_smooth(
 
     omega = np.asarray(omega, dtype=np.float64)
     eps = float(epsilon)
-    z = np.clip(omega / eps, -60.0, 60.0)
+    z = omega / eps
     soft = eps * np.logaddexp(0.0, -z)
     sigma = 1.0 / (1.0 + np.exp(z))
     grad = -2.0 * float(w_neg) * soft * sigma
