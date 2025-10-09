@@ -76,7 +76,7 @@
   "artifacts_root": "artifacts",
   "random_seed": null,
   "optimizer_options": {
-    "max_iters": 250,
+    "max_iters": 50,
     "grad_tol": 1e-10,
     "rtol": 1e-10,
     "max_time_s": 1800.0,
@@ -89,8 +89,8 @@
     "method": "adam"
   },
   "penalties": {
-    "power_weight": 1e-05,
-    "neg_weight": 1e-10,
+    "power_weight": 0.0001,
+    "neg_weight": 1e-08,
     "neg_kappa": 10.0
   },
   "metadata": {
