@@ -607,7 +607,6 @@ def _evaluate_path(
     path_fidelity = float(np.clip((problem.dt_us / total_time) * overlaps.sum(), 0.0, 1.0))
     path_infidelity = 1.0 - path_fidelity
     psi_T = rho_path[-1]
-    print(psi_T)
     # Support either state vector (shape (2,)) or density matrix (shape (2,2))
     if isinstance(psi_T, np.ndarray) and psi_T.ndim == 1:
         # ⟨ψ_target|ψ_T⟩ absolute square
@@ -630,15 +629,15 @@ def _evaluate_path(
     )
 
     Nt = omega.size
-    lams = np.zeros((Nt, 2, 2), dtype=np.complex128)
-    lams[Nt-1] = (problem.dt_us / total_time) * projectors[Nt]
+    lams = np.zeros((Nt + 1, 2, 2), dtype=np.complex128)
+    lams[-1] = projectors[-1]  # Terminal condition
     for k in range(Nt - 1, -1, -1):
-        U = U_hist[k+1]
-        lams[k] = U.conj().T @ (lams[k + 1] + (problem.dt_us / total_time) * projectors[k]) @ U
+        U = U_hist[k]
+        lams[k] = U.conj().T @ (lams[k + 1] ) @ U + (problem.dt_us / total_time) * projectors[k]
 
     gO_time = np.zeros_like(omega, dtype=np.float64)
     gD_time = np.zeros_like(delta_eval, dtype=np.float64)
-    for k in range(Nt - 1):
+    for k in range(Nt):
         rho_k = rhos[k]
         lam_next = lams[k + 1]
         gO_time[k] = -np.imag(np.trace(lam_next @ (SIGMA_X_HALF @ rho_k - rho_k @ SIGMA_X_HALF))) * problem.dt_us
