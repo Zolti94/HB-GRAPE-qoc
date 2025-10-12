@@ -33,13 +33,6 @@ def terminal_infidelity(psi_T: NDArrayComplex, psi_target: NDArrayComplex) -> Co
     return {"terminal": float(1.0 - fidelity)}
 
 
-
-
-
-
-
-
-
 def total_cost(terms: Iterable[CostDict]) -> CostDict:
     """Combine individual term dictionaries and add a "total" entry."""
 
