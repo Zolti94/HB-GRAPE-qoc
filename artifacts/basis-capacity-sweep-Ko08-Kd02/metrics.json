@@ -1,15 +1,15 @@
 {
-  "terminal": 0.05489457365163686,
+  "terminal": 0.0010194662016648204,
   "path": 0.0,
   "ensemble": 0.0,
-  "power_penalty": 0.13299827533048386,
-  "neg_penalty": 367.26766848834524,
-  "total": 367.45556133732737,
-  "terminal_eval": 0.05489457365163686,
-  "runtime_s": 28.031016499968246,
+  "power_penalty": 0.26929450610301947,
+  "neg_penalty": 273.0207244823126,
+  "total": 273.29103845461725,
+  "terminal_eval": 0.0010194662016648204,
+  "runtime_s": 27.631181000033394,
   "status": "max_iters",
   "objective": "terminal",
-  "terminal_infidelity": 0.05489457365163686,
+  "terminal_infidelity": 0.0010194662016648204,
   "path_infidelity": 0.0,
   "ensemble_infidelity": 0.0
 }

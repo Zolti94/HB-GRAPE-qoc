@@ -1,1 +1,1 @@
-status=max_iters total=669.606366
+status=max_iters total=485.734734
