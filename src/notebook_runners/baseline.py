@@ -16,6 +16,7 @@ from ..baselines import (
     build_grape_baseline,
 )
 from ..config import BaselineSpec, ExperimentConfig, PenaltyConfig
+from ..physics import rho_to_state
 
 
 DEFAULT_TIME_GRID = {"duration_us": 0.1, "num_points": 2001, "start_us": 0.0}
@@ -45,21 +46,6 @@ def coerce_vector(name: str, values: Sequence[float] | np.ndarray, expected_len:
     return vec
 
 
-def _rho_to_state(rho: np.ndarray | Sequence[Sequence[complex]]) -> np.ndarray:
-    """Convert a state vector or 2x2 density matrix to a normalized vector."""
-
-    arr = np.asarray(rho, dtype=np.complex128)
-    if arr.shape == (2,):
-        vec = arr
-    elif arr.shape == (2, 2):
-        vals, vecs = np.linalg.eigh(arr)
-        vec = vecs[:, int(np.argmax(vals))]
-    else:
-        raise ValueError("rho must have shape (2,) or (2, 2)")
-    phase = np.exp(-1j * np.angle(vec[0])) if abs(vec[0]) > 1e-12 else 1.0
-    return (vec * phase).astype(np.complex128)
-
-
 def prepare_baseline(
     *,
     time_grid: Mapping[str, Any] | None = None,
@@ -82,8 +68,8 @@ def prepare_baseline(
     omega_spec = PulseShapeSpec(**omega_shape)
     delta_spec = PulseShapeSpec(**delta_shape) if delta_shape is not None else None
 
-    rho_seed = _rho_to_state(rho0) if rho0 is not None else _rho_to_state(_DEFAULT_RHO0)
-    target_seed = _rho_to_state(target) if target is not None else _rho_to_state(_DEFAULT_TARGET)
+    rho_seed = rho_to_state(rho0) if rho0 is not None else rho_to_state(_DEFAULT_RHO0)
+    target_seed = rho_to_state(target) if target is not None else rho_to_state(_DEFAULT_TARGET)
 
     baseline_cfg = GrapeBaselineConfig(
         time_grid=time_spec,
@@ -108,8 +94,8 @@ def prepare_baseline(
         config=baseline_cfg,
         arrays=arrays,
         metadata=dict(metadata),
-        psi0=_rho_to_state(arrays.get("rho0", rho_seed)),
-        target=_rho_to_state(arrays.get("target", target_seed)),
+        psi0=rho_to_state(arrays.get("rho0", rho_seed)),
+        target=rho_to_state(arrays.get("target", target_seed)),
         t_us=t_us,
         dt_us=dt_us,
     )

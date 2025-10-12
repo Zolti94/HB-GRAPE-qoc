@@ -18,6 +18,7 @@ from .physics import (
     bloch_components,
     fidelity_pure,
     adjoint_steps,
+    rho_to_state,
 )
 from .cost import (
     terminal_infidelity,
@@ -31,6 +32,9 @@ from .controls import (
     coeffs_to_control,
     grad_control_wrt_coeffs,
     ensure_time_grid_match,
+    normalize_basis_columns,
+    harmonic_sine_basis,
+    build_normalized_harmonic_bases,
 )
 from .plotting import (
     plot_cost_history,
@@ -63,14 +67,17 @@ __all__ = [
     "coeffs_to_control",
     "compute_penalties",
     "crab_linear_basis",
+    "harmonic_sine_basis",
     "ensure_dir",
     "ensure_time_grid_match",
     "fidelity_pure",
     "grad_control_wrt_coeffs",
     "grad_terminal_wrt_controls",
+    "build_normalized_harmonic_bases",
     "hamiltonian_t",
     "json_ready",
     "make_time_grid",
+    "normalize_basis_columns",
     "override_from_dict",
     "penalty_terms",
     "plot_cost_history",
@@ -81,6 +88,7 @@ __all__ = [
     "propagate_piecewise_const",
     "propagate_with_controls",
     "register_optimizer",
+    "rho_to_state",
     "require_real_finite",
     "Result",
     "run_experiment",

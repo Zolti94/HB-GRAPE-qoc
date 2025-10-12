@@ -5,7 +5,7 @@ State vectors are complex-valued arrays normalized in the computational basis
 with |0> = [1, 0]."""
 from __future__ import annotations
 
-from typing import Callable, Mapping, MutableMapping
+from typing import Callable, Mapping, MutableMapping, Sequence
 
 import numpy as np
 import numpy.typing as npt
@@ -22,6 +22,7 @@ __all__ = [
     "fidelity_pure",
     "adjoint_steps",
     "validate_units_and_shapes",
+    "rho_to_state",
 ]
 
 SIGMA_X: NDArrayComplex = np.array([[0.0, 1.0], [1.0, 0.0]], dtype=np.complex128)
@@ -102,6 +103,25 @@ def _psi_to_rho(psi: NDArrayComplex) -> NDArrayComplex:
     if vec.shape != (2,):
         raise ValueError("State vector must have shape (2,).")
     return np.outer(vec, vec.conj())
+
+
+def rho_to_state(rho: NDArrayComplex | Sequence[Sequence[complex]] | Sequence[complex]) -> NDArrayComplex:
+    """Return the dominant eigenvector of ``rho`` with a real leading component.
+
+    Accepts either a state vector shaped ``(2,)`` or a ``(2, 2)`` density matrix.
+    """
+
+    arr = np.asarray(rho, dtype=np.complex128)
+    if arr.shape == (2,):
+        vec = arr
+    elif arr.shape == (2, 2):
+        vals, vecs = np.linalg.eigh(arr)
+        idx = int(np.argmax(vals))
+        vec = vecs[:, idx]
+    else:
+        raise ValueError("rho must be a state vector (2,) or density matrix (2, 2).")
+    phase = np.exp(-1j * np.angle(vec[0])) if abs(vec[0]) > 1e-12 else 1.0
+    return (vec * phase).astype(np.complex128)
 
 
 def propagate_piecewise_const(

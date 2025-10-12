@@ -16,35 +16,9 @@ from .base import (
     clip_gradients,
     evaluate_problem,
     history_to_arrays,
+    make_step_stats,
     safe_norm,
 )
-
-
-def _make_step_stats(
-    iteration: int,
-    cost: Dict[str, float],
-    grad_norm: float,
-    step_norm: float,
-    lr_value: float,
-    wall_time: float,
-    calls: int,
-) -> StepStats:
-    """Package scalar metrics for logging and serialization."""
-
-    return StepStats(
-        iteration=iteration,
-        total=float(cost.get("total", 0.0)),
-        terminal=float(cost.get("terminal", 0.0)),
-        path=float(cost.get("path", 0.0)),
-        ensemble=float(cost.get("ensemble", 0.0)),
-        power_penalty=float(cost.get("power_penalty", 0.0)),
-        neg_penalty=float(cost.get("neg_penalty", 0.0)),
-        grad_norm=grad_norm,
-        step_norm=step_norm,
-        lr=lr_value,
-        wall_time_s=wall_time,
-        calls_per_iter=calls,
-    )
 
 
 def optimize_linesearch(
@@ -103,13 +77,13 @@ def optimize_linesearch(
 
         if not np.isfinite(total_cost) or not np.isfinite(grad_coeffs).all():
             status = "failed_nonfinite"
-            stats = _make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls)
+            stats = make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls)
             state.record(stats)
             break
 
         if grad_norm <= grad_tol:
             status = "converged_grad"
-            stats = _make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls)
+            stats = make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls)
             state.record(stats)
             break
 
@@ -118,7 +92,7 @@ def optimize_linesearch(
             if rel_impr <= rtol:
                 # Terminate early when relative improvement stalls.
                 status = "converged_rtol"
-                stats = _make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls)
+                stats = make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls)
                 state.record(stats)
                 break
 
@@ -128,7 +102,7 @@ def optimize_linesearch(
         grad_dot_dir = float(np.dot(clipped_grad, direction))
         if grad_dot_dir >= 0.0:
             status = "armijo_direction"
-            stats = _make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls)
+            stats = make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls)
             state.record(stats)
             break
 
@@ -157,13 +131,13 @@ def optimize_linesearch(
 
         if not accepted:
             status = "armijo_failed"
-            stats = _make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls_this_iter)
+            stats = make_step_stats(iteration, cost_dict, grad_norm, 0.0, 0.0, time.perf_counter() - iter_start, calls_this_iter)
             state.record(stats)
             break
 
         coeffs = candidate_coeffs
         step_norm = safe_norm(alpha * direction)
-        stats = _make_step_stats(iteration, cost_dict, grad_norm, step_norm, alpha, time.perf_counter() - iter_start, calls_this_iter)
+        stats = make_step_stats(iteration, cost_dict, grad_norm, step_norm, alpha, time.perf_counter() - iter_start, calls_this_iter)
         state.record(stats)
         prev_total = total_cost
 

@@ -14,6 +14,7 @@ from typing import Any, Dict, Mapping, MutableMapping, Sequence, Tuple
 import numpy as np
 
 from ..utils import json_ready
+from ..controls import harmonic_sine_basis, normalize_basis_columns
 
 __all__ = [
     "BasisSpec",
@@ -363,22 +364,6 @@ def _harmonic_frequencies(modes: np.ndarray, duration_us: float) -> np.ndarray:
     return np.pi * np.asarray(modes, dtype=np.float64) / float(duration_us)
 
 
-def _sine_basis(tau: np.ndarray, omegas: np.ndarray) -> np.ndarray:
-    if omegas.size == 0:
-        return np.zeros((tau.size, 0), dtype=np.float64)
-    phase = np.outer(tau, np.asarray(omegas, dtype=np.float64))
-    return np.sin(phase)
-
-
-def _normalize_columns(matrix: np.ndarray, dt_us: float) -> np.ndarray:
-    if matrix.size == 0:
-        return matrix.astype(np.float64)
-    working = np.asarray(matrix, dtype=np.float64)
-    norms = np.sqrt(np.sum(working * working, axis=0) * float(dt_us))
-    norms[norms == 0.0] = 1.0
-    return working / norms
-
-
 def _pulse_summary(pulse: np.ndarray, dt_us: float) -> Dict[str, float]:
     return {
         "area_pi": float(np.sum(pulse) * dt_us / np.pi),
@@ -425,8 +410,10 @@ def build_grape_baseline(config: GrapeBaselineConfig) -> Tuple[Dict[str, np.ndar
     omega_freqs = _harmonic_frequencies(omega_modes, duration_us)
     delta_freqs = _harmonic_frequencies(delta_modes, duration_us)
 
-    omega_basis = _normalize_columns(_sine_basis(tau, omega_freqs), dt_us)
-    delta_basis = _normalize_columns(_sine_basis(tau, delta_freqs), dt_us)
+    omega_basis_raw = harmonic_sine_basis(t_us, omega_modes, duration_us)
+    delta_basis_raw = harmonic_sine_basis(t_us, delta_modes, duration_us)
+    omega_basis = normalize_basis_columns(omega_basis_raw, dt_us)
+    delta_basis = normalize_basis_columns(delta_basis_raw, dt_us)
 
     arrays: Dict[str, np.ndarray] = {
         "t_us": np.asarray(t_us, dtype=np.float64),
@@ -497,4 +484,3 @@ def write_baseline(
         import json
 
         json.dump(json_ready(metadata), f, indent=2)
-

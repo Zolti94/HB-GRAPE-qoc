@@ -13,7 +13,7 @@ from ..config import ExperimentConfig, PenaltyConfig
 from ..controls import coeffs_to_control, crab_linear_basis
 from ..cost import accumulate_cost_and_grads
 from ..penalties import compute_penalties
-from ..physics import propagate_piecewise_const, fidelity_pure, SIGMA_X, SIGMA_Z
+from ..physics import propagate_piecewise_const, fidelity_pure, SIGMA_X, SIGMA_Z, rho_to_state
 from ..crab_notebook_utils import ground_state_projectors
 
 NDArrayFloat = npt.NDArray[np.float64]
@@ -22,6 +22,7 @@ NDArrayComplex = npt.NDArray[np.complex128]
 __all__ = [
     "NDArrayFloat",
     "StepStats",
+    "make_step_stats",
     "OptimizerState",
     "GrapeControlProblem",
     "OptimizationOutput",
@@ -35,33 +36,6 @@ __all__ = [
 SIGMA_X_HALF = 0.5 * SIGMA_X
 SIGMA_Z_HALF = 0.5 * SIGMA_Z
 _TWO_PI = 2.0 * np.pi
-
-
-def _rho_to_state(rho: NDArrayComplex) -> NDArrayComplex:
-    """Return the dominant eigenvector of ``rho`` with a real leading component.
-
-    Parameters
-    ----------
-    rho : numpy.ndarray
-        State vector or 2x2 density matrix.
-
-    Returns
-    -------
-    numpy.ndarray
-        Normalised state vector suitable for control propagation.
-    """
-
-    rho = np.asarray(rho, dtype=np.complex128)
-    if rho.shape == (2,):
-        vec = rho
-    elif rho.shape == (2, 2):
-        vals, vecs = np.linalg.eigh(rho)
-        idx = int(np.argmax(vals))
-        vec = vecs[:, idx]
-    else:
-        raise ValueError("rho must be a state vector (2,) or density matrix (2,2).")
-    phase = np.exp(-1j * np.angle(vec[0])) if abs(vec[0]) > 1e-12 else 1.0
-    return (vec * phase).astype(np.complex128)
 
 
 @dataclass(slots=True)
@@ -119,6 +93,33 @@ def _init_history() -> Dict[str, list[Any]]:
         "wall_time_s": [],
         "calls_per_iter": [],
     }
+
+
+def make_step_stats(
+    iteration: int,
+    cost: Mapping[str, Any],
+    grad_norm: float,
+    step_norm: float,
+    lr_value: float,
+    wall_time: float,
+    calls: int,
+) -> StepStats:
+    """Convenience wrapper to populate :class:`StepStats` from scalar metrics."""
+
+    return StepStats(
+        iteration=int(iteration),
+        total=float(cost.get("total", 0.0)),
+        terminal=float(cost.get("terminal", 0.0)),
+        path=float(cost.get("path", 0.0)),
+        ensemble=float(cost.get("ensemble", 0.0)),
+        power_penalty=float(cost.get("power_penalty", 0.0)),
+        neg_penalty=float(cost.get("neg_penalty", 0.0)),
+        grad_norm=float(grad_norm),
+        step_norm=float(step_norm),
+        lr=float(lr_value),
+        wall_time_s=float(wall_time),
+        calls_per_iter=int(calls),
+    )
 
 
 @dataclass(slots=True)
@@ -373,8 +374,8 @@ def build_grape_problem(config: ExperimentConfig) -> tuple[GrapeControlProblem, 
     if basis_delta is not None and basis_delta.shape[0] != t_us.shape[0]:
         raise ValueError("Delta basis rows must match time samples.")
 
-    psi0 = _rho_to_state(arrays.get("rho0", np.array([1.0, 0.0], dtype=np.complex128)))
-    psi_target = _rho_to_state(arrays.get("target", np.array([0.0, 1.0], dtype=np.complex128)))
+    psi0 = rho_to_state(arrays.get("rho0", np.array([1.0, 0.0], dtype=np.complex128)))
+    psi_target = rho_to_state(arrays.get("target", np.array([0.0, 1.0], dtype=np.complex128)))
 
     options = dict(config.optimizer_options)
     metadata = dict(metadata)
