@@ -17,6 +17,8 @@ from src.baselines import (
     TimeGridSpec,
     build_grape_baseline,
 )
+from src.config import BaselineSpec, ExperimentConfig, PenaltyConfig
+from src.optimizers.base import build_grape_problem, evaluate_problem
 from src.qoc_common import penalty_terms, terminal_cost, terminal_cost_and_grad
 from src.qoc_common_crab import (
     build_normalized_harmonic_bases,
@@ -145,6 +147,35 @@ def test_negativity_penalty_behavior() -> None:
     omega_next = omega - 0.2 * gO
     assert float(np.quantile(omega_next, 0.05)) >= float(np.quantile(omega, 0.05))
 
+
+
+def test_initial_costs_align_across_objectives() -> None:
+    baseline_cfg = default_baseline_config()
+    baseline_spec = BaselineSpec(name='unit_test_baseline', params=baseline_cfg.to_dict())
+    penalties = PenaltyConfig(power_weight=5e-5, neg_weight=1e-3, neg_kappa=9.0)
+    optimizer_options = {"method": "adam", "max_iters": 1}
+
+    metrics = {}
+    for objective in ("terminal", "ensemble", "path"):
+        config = ExperimentConfig(
+            baseline=baseline_spec,
+            run_name=f"cost-check-{objective}",
+            optimizer_options=dict(optimizer_options),
+            penalties=penalties,
+            metadata={"objective": objective},
+        )
+        problem, coeffs0, _ = build_grape_problem(config)
+        cost_dict, _, _ = evaluate_problem(problem, coeffs0, neg_kappa=penalties.neg_kappa)
+        metrics[objective] = {
+            "terminal": float(cost_dict.get("terminal", 0.0)),
+            "power": float(cost_dict.get("power_penalty", 0.0)),
+            "neg": float(cost_dict.get("neg_penalty", 0.0)),
+        }
+
+    base = metrics['terminal']
+    for objective in ('ensemble', 'path'):
+        for key in ('terminal', 'power', 'neg'):
+            assert np.isclose(metrics[objective][key], base[key])
 
 def test_no_legacy_update_symbols() -> None:
     banned = ("lowpass_update", "apply_shared_update", "pin_endpoints", "cutoff_MHz")

@@ -14,6 +14,8 @@ from typing import Any, Dict, Tuple
 
 import numpy as np
 
+from .penalties import compute_penalties, penalty_terms as penalty_terms_shared
+
 # ---------- Physics ----------
 I2 = np.eye(2, dtype=np.complex128)
 sigma_x = np.array([[0, 1], [1, 0]], dtype=np.complex128)
@@ -76,53 +78,6 @@ def _consume_deprecated_pulse_kwargs(kwargs: Dict[str, Any]) -> None:
 
 
 
-def _penalty_terms(
-    omega: np.ndarray,
-    dt: float,
-    *,
-    power_weight: float,
-    neg_weight: float,
-    neg_kappa: float,
-) -> tuple[float, float, np.ndarray]:
-    """Return (fluence_penalty, negativity_penalty, grad_omega)."""
-    # Alias expected name for external imports.
-    omega = np.asarray(omega, dtype=float)
-    dt = float(dt)
-    grad = np.zeros_like(omega, dtype=float)
-    power_penalty = 0.0
-    if power_weight != 0.0:
-        power_scale = float(power_weight)
-        power_penalty = 0.5 * power_scale * float(np.sum(omega * omega, dtype=float) * dt)
-        grad += power_scale * omega * dt
-    neg_penalty = 0.0
-    if neg_weight != 0.0:
-        k = float(neg_kappa)
-        if k <= 0.0:
-            raise ValueError("neg_kappa must be positive.")
-        neg_scale = float(neg_weight)
-        neg = np.logaddexp(0.0, -k * omega) / k
-        neg_penalty = 0.5 * neg_scale * float(np.sum(neg * neg, dtype=float) * dt)
-        sigmoid = 0.5 * (np.tanh(-0.5 * k * omega) + 1.0)
-        grad += -(neg_scale * neg * sigmoid) * dt
-    return power_penalty, neg_penalty, grad
-
-
-def penalty_terms(
-    omega: np.ndarray,
-    dt: float,
-    *,
-    power_weight: float = 0.0,
-    neg_weight: float = 0.0,
-    neg_kappa: float = 10.0,
-) -> tuple[float, float, np.ndarray]:
-    """Public wrapper for shared penalty contributions."""
-    return _penalty_terms(
-        omega,
-        dt,
-        power_weight=power_weight,
-        neg_weight=neg_weight,
-        neg_kappa=neg_kappa,
-    )
 
 def terminal_cost(
     Omega: np.ndarray,
@@ -144,8 +99,9 @@ def terminal_cost(
     dt = float(np.asarray(dt, dtype=float))
     rhos = forward_rhos(Omega, Delta, rho0, dt)
     cost = 1.0 - float(np.real(np.trace(rhos[-1] @ target)))
-    power_penalty, neg_penalty, _ = _penalty_terms(
+    power_penalty, neg_penalty, _, _ = compute_penalties(
         Omega,
+        Delta,
         dt,
         power_weight=power_weight,
         neg_weight=neg_weight,
@@ -188,20 +144,22 @@ def terminal_cost_and_grad(
         lam_next = lams[k + 1]
         gO[k] = -np.imag(np.trace(lam_next @ (dHx @ rho_k - rho_k @ dHx))) * dt
         gD[k] = -np.imag(np.trace(lam_next @ (dHz @ rho_k - rho_k @ dHz))) * dt
-    power_penalty, neg_penalty, penalty_grad = _penalty_terms(
+    power_penalty, neg_penalty, pen_grad_omega, pen_grad_delta = compute_penalties(
         Omega,
+        Delta,
         dt,
         power_weight=power_weight,
         neg_weight=neg_weight,
         neg_kappa=neg_kappa,
     )
     cost += power_penalty + neg_penalty
-    gO += penalty_grad
+    gO += pen_grad_omega
+    gD += pen_grad_delta
     return cost, gO, gD
 
 
 # Backwards-compatible export
-penalty_terms = _penalty_terms
+penalty_terms = penalty_terms_shared
 # ---------- Constraints ----------
 def apply_bounds(x: np.ndarray, limit: float | None) -> np.ndarray:
     """Symmetric box bounds: clip to [-limit, limit] if limit provided."""

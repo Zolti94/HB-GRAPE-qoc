@@ -11,12 +11,8 @@ import numpy.typing as npt
 from ..baselines import GrapeBaselineConfig, build_grape_baseline
 from ..config import ExperimentConfig, PenaltyConfig
 from ..controls import coeffs_to_control, crab_linear_basis
-from ..cost import (
-    accumulate_cost_and_grads,
-    penalty_terms,
-    grad_power_fluence,
-    power_fluence_penalty,
-)
+from ..cost import accumulate_cost_and_grads
+from ..penalties import compute_penalties
 from ..physics import propagate_piecewise_const, fidelity_pure
 from ..crab_notebook_utils import ground_state_projectors
 
@@ -486,14 +482,9 @@ def _evaluate_terminal(
     problem: GrapeControlProblem,
     omega: NDArrayFloat,
     delta: Optional[NDArrayFloat],
-    neg_epsilon: float,
+    neg_kappa: float,
 ) -> tuple[Dict[str, float], NDArrayFloat, Dict[str, Any]]:
-    """Evaluate terminal objective value and gradients for given controls.
-
-    If detuning is not being optimised, apply the power penalty to the
-    optimisable channel(s) only so the optimizer can effectively reduce the
-    total objective (avoid charging a fixed baseline term).
-    """
+    """Evaluate terminal objective value and gradients for given controls."""
     delta_eval = (
         delta
         if delta is not None
@@ -504,79 +495,37 @@ def _evaluate_terminal(
         )
     )
 
-    if problem.delta_slice is None:
-        # Penalise only Omega when Delta is not optimised.
-        raw_cost, grad_dict = accumulate_cost_and_grads(
-            omega,
-            delta_eval,
-            problem.dt_us,
-            psi0=problem.psi0,
-            psi_target=problem.psi_target,
-            w_power=0.0,
-            w_neg=problem.penalties.neg_weight,
-            neg_epsilon=neg_epsilon,
-        )
-        # Add Omega-only power penalty and its gradient.
-        power_dict = power_fluence_penalty(
-            omega,
-            np.zeros_like(omega),
-            problem.dt_us,
-            problem.penalties.power_weight,
-        )
-        grad_power = grad_power_fluence(
-            omega,
-            np.zeros_like(omega),
-            problem.dt_us,
-            problem.penalties.power_weight,
-        )
-        gO_time = grad_dict.get("dJ/dOmega", np.zeros_like(omega)) + grad_power.get(
-            "dJ/dOmega", np.zeros_like(omega)
-        )
-        gD_time = grad_dict.get("dJ/dDelta", np.zeros_like(delta_eval))
-        cost = {
-            "terminal": float(raw_cost.get("terminal", 0.0)),
-            "path": 0.0,
-            "ensemble": 0.0,
-            "power_penalty": float(power_dict.get("power_penalty", 0.0)),
-            "neg_penalty": float(raw_cost.get("neg_penalty", 0.0)),
-            "total": float(
-                raw_cost.get("terminal", 0.0)
-                + raw_cost.get("neg_penalty", 0.0)
-                + power_dict.get("power_penalty", 0.0)
-            ),
-            "terminal_eval": float(raw_cost.get("terminal", 0.0)),
-        }
-        grad_coeffs = problem.gradients_to_coeffs(gO_time, None)
-        grad_time = {"dJ/dOmega": gO_time, "dJ/dDelta": np.zeros_like(delta_eval)}
-    else:
-        # Penalise both channels when Delta is optimised.
-        raw_cost, grad_dict = accumulate_cost_and_grads(
-            omega,
-            delta_eval,
-            problem.dt_us,
-            psi0=problem.psi0,
-            psi_target=problem.psi_target,
-            w_power=problem.penalties.power_weight,
-            w_neg=problem.penalties.neg_weight,
-            neg_epsilon=neg_epsilon,
-        )
-        cost = {
-            "terminal": float(raw_cost.get("terminal", 0.0)),
-            "path": 0.0,
-            "ensemble": 0.0,
-            "power_penalty": float(raw_cost.get("power_penalty", 0.0)),
-            "neg_penalty": float(raw_cost.get("neg_penalty", 0.0)),
-            "total": float(raw_cost.get("total", 0.0)),
-            "terminal_eval": float(raw_cost.get("terminal", 0.0)),
-        }
-        grad_coeffs = problem.gradients_to_coeffs(
-            grad_dict.get("dJ/dOmega", np.zeros_like(omega)),
-            grad_dict.get("dJ/dDelta"),
-        )
-        grad_time = {
-            "dJ/dOmega": grad_dict.get("dJ/dOmega", np.zeros_like(omega)),
-            "dJ/dDelta": grad_dict.get("dJ/dDelta", np.zeros_like(delta_eval)),
-        }
+    cost_dict, grad_dict = accumulate_cost_and_grads(
+        omega,
+        delta_eval,
+        problem.dt_us,
+        psi0=problem.psi0,
+        psi_target=problem.psi_target,
+        w_power=problem.penalties.power_weight,
+        w_neg=problem.penalties.neg_weight,
+        neg_kappa=neg_kappa,
+    )
+
+    gO_time = np.asarray(grad_dict.get("dJ/dOmega", np.zeros_like(omega)), dtype=np.float64)
+    gD_time_full = np.asarray(grad_dict.get("dJ/dDelta", np.zeros_like(delta_eval)), dtype=np.float64)
+    gD_for_coeffs = gD_time_full if problem.delta_slice is not None else None
+
+    grad_coeffs = problem.gradients_to_coeffs(gO_time, gD_for_coeffs)
+
+    grad_time = {
+        "dJ/dOmega": gO_time,
+        "dJ/dDelta": gD_time_full if gD_for_coeffs is not None else np.zeros_like(delta_eval),
+    }
+
+    cost = {
+        "terminal": float(cost_dict.get("terminal", 0.0)),
+        "path": 0.0,
+        "ensemble": 0.0,
+        "power_penalty": float(cost_dict.get("power_penalty", 0.0)),
+        "neg_penalty": float(cost_dict.get("neg_penalty", 0.0)),
+        "total": float(cost_dict.get("total", cost_dict.get("terminal", 0.0))),
+        "terminal_eval": float(cost_dict.get("terminal", 0.0)),
+    }
 
     extras = {
         "omega": omega,
@@ -592,6 +541,7 @@ def _evaluate_path(
     problem: GrapeControlProblem,
     omega: NDArrayFloat,
     delta: Optional[NDArrayFloat],
+    neg_kappa: float,
 ) -> tuple[Dict[str, float], NDArrayFloat, Dict[str, Any]]:
     """Evaluate path objective using instantaneous ground-state projectors."""
     delta_eval = delta if delta is not None else (
@@ -602,49 +552,69 @@ def _evaluate_path(
     U_hist = np.asarray(prop["U_hist"], dtype=np.complex128)
     rhos = rho_path[:-1]
     projectors = ground_state_projectors(omega, delta_eval)
-    overlaps = np.real(np.einsum("kij,kji->k", projectors, rhos))
     total_time = problem.t_total_us if problem.t_total_us > 0.0 else problem.dt_us * max(len(omega), 1)
+    dt_over_total = problem.dt_us / total_time if total_time > 0.0 else 0.0
+    grad_proj_omega = np.zeros_like(omega, dtype=np.float64)
+    grad_proj_delta = np.zeros_like(delta_eval, dtype=np.float64)
+    for idx, (om, de) in enumerate(zip(omega, delta_eval)):
+        norm = float(np.hypot(om, de))
+        if norm < 1e-12:
+            continue
+        norm3 = norm * norm * norm
+        dnx_domega = (de * de) / norm3
+        dnz_domega = -om * de / norm3
+        dnx_ddelta = -om * de / norm3
+        dnz_ddelta = (om * om) / norm3
+        dP_domega = -0.5 * (dnx_domega * SIGMA_X + dnz_domega * SIGMA_Z)
+        dP_ddelta = -0.5 * (dnx_ddelta * SIGMA_X + dnz_ddelta * SIGMA_Z)
+        rho_k = rhos[idx]
+        grad_proj_omega[idx] = -dt_over_total * float(np.real(np.trace(dP_domega @ rho_k)))
+        grad_proj_delta[idx] = -dt_over_total * float(np.real(np.trace(dP_ddelta @ rho_k)))
+    overlaps = np.real(np.einsum("kij,kji->k", projectors, rhos))
     path_fidelity = float(np.clip((problem.dt_us / total_time) * overlaps.sum(), 0.0, 1.0))
     path_infidelity = 1.0 - path_fidelity
     psi_T = rho_path[-1]
     # Support either state vector (shape (2,)) or density matrix (shape (2,2))
     if isinstance(psi_T, np.ndarray) and psi_T.ndim == 1:
-        # ⟨ψ_target|ψ_T⟩ absolute square
-        overlap = np.vdot(problem.psi_target, psi_T)  # conj(ψ_target)^T ψ_T
+        overlap = np.vdot(problem.psi_target, psi_T)
         final_fidelity = float(np.clip(np.real(overlap * overlap.conjugate()), 0.0, 1.0))
     else:
-        # ρ_T case: Tr[ ρ_T |ψ_target⟩⟨ψ_target| ]
         proj = np.outer(problem.psi_target, np.conjugate(problem.psi_target))
         final_fidelity = float(np.clip(np.real(np.trace(psi_T @ proj)), 0.0, 1.0))
-    # final_state = rho_path[-1]
-    # final_fidelity = float(np.clip(np.real(np.trace(final_state @ problem.psi_target @ problem.psi_target.conj().T)), 0.0, 1.0))
     final_infidelity = 1.0 - final_fidelity
 
-    pen_power, pen_neg, grad_penalty_time = penalty_terms(
+    pen_power, pen_neg, grad_pen_omega, grad_pen_delta = compute_penalties(
         omega,
+        delta_eval,
         problem.dt_us,
         power_weight=problem.penalties.power_weight,
         neg_weight=problem.penalties.neg_weight,
-        neg_kappa=problem.penalties.neg_kappa,
+        neg_kappa=neg_kappa,
     )
 
     Nt = omega.size
     lams = np.zeros((Nt + 1, 2, 2), dtype=np.complex128)
-    lams[-1] = projectors[-1]  # Terminal condition
+    lams[-1] = (problem.dt_us / total_time) * projectors[-1]
     for k in range(Nt - 1, -1, -1):
         U = U_hist[k]
         lams[k] = U.conj().T @ (lams[k + 1] ) @ U + (problem.dt_us / total_time) * projectors[k]
-
     gO_time = np.zeros_like(omega, dtype=np.float64)
     gD_time = np.zeros_like(delta_eval, dtype=np.float64)
     for k in range(Nt):
         rho_k = rhos[k]
-        lam_next = lams[k + 1]
+        lam_next = lams[k]
         gO_time[k] = -np.imag(np.trace(lam_next @ (SIGMA_X_HALF @ rho_k - rho_k @ SIGMA_X_HALF))) * problem.dt_us
         gD_time[k] = -np.imag(np.trace(lam_next @ (SIGMA_Z_HALF @ rho_k - rho_k @ SIGMA_Z_HALF))) * problem.dt_us
 
-    gO_time_total = gO_time + grad_penalty_time
-    gD_time_total = gD_time if problem.delta_slice is not None else None
+    gO_time += grad_proj_omega
+    gD_time += grad_proj_delta
+
+    gO_time_total = gO_time + grad_pen_omega
+    if problem.delta_slice is not None:
+        gD_time_total = gD_time + grad_pen_delta
+    else:
+        gD_time_total = None
+
     grad_coeffs = problem.gradients_to_coeffs(gO_time_total, gD_time_total)
 
     cost = {
@@ -678,7 +648,7 @@ def _evaluate_ensemble(
     problem: GrapeControlProblem,
     omega: NDArrayFloat,
     delta: Optional[NDArrayFloat],
-    neg_epsilon: float,
+    neg_kappa: float,
 ) -> tuple[Dict[str, float], NDArrayFloat, Dict[str, Any]]:
     """Evaluate ensemble objective by marginalising over amplitude/detuning samples."""
     delta_eval = delta if delta is not None else (
@@ -702,15 +672,15 @@ def _evaluate_ensemble(
     detuning_weights = detuning_weights / detuning_weights.sum()
     ensemble_size = beta_vals.size * detuning_vals.size
 
-    pen_power, pen_neg, grad_penalty_time = penalty_terms(
+    pen_power, pen_neg, grad_pen_omega, grad_pen_delta = compute_penalties(
         omega,
+        delta_eval,
         problem.dt_us,
         power_weight=problem.penalties.power_weight,
         neg_weight=problem.penalties.neg_weight,
-        neg_kappa=problem.penalties.neg_kappa,
+        neg_kappa=neg_kappa,
     )
 
-    # Compute base terminal infidelity (no penalties) using common accumulator
     base_cost, _ = accumulate_cost_and_grads(
         omega,
         delta_eval,
@@ -719,7 +689,7 @@ def _evaluate_ensemble(
         psi_target=problem.psi_target,
         w_power=0.0,
         w_neg=0.0,
-        neg_epsilon=neg_epsilon,
+        neg_kappa=neg_kappa,
     )
     base_infidelity = float(base_cost.get("terminal", 0.0))
 
@@ -730,10 +700,8 @@ def _evaluate_ensemble(
     fid_sq_sum = 0.0
 
     for beta, beta_weight in zip(beta_vals, beta_weights):
-        # Sweep amplitude-scaling samples to estimate ensemble robustness.
         omega_mod = beta * omega
         for detuning, det_weight in zip(detuning_offsets, detuning_weights):
-            # Shift detuning samples and accumulate weighted gradients.
             weight = float(beta_weight * det_weight)
             delta_mod = delta_eval + detuning
             sample_cost, sample_grad = accumulate_cost_and_grads(
@@ -744,7 +712,7 @@ def _evaluate_ensemble(
                 psi_target=problem.psi_target,
                 w_power=0.0,
                 w_neg=0.0,
-                neg_epsilon=neg_epsilon,
+                neg_kappa=neg_kappa,
             )
             sample_infidelity = float(sample_cost.get("terminal", 0.0))
             gO_time = np.asarray(sample_grad.get("dJ/dOmega", np.zeros_like(omega_mod)), dtype=np.float64)
@@ -753,18 +721,18 @@ def _evaluate_ensemble(
             sample_fidelity = float(np.clip(1.0 - sample_infidelity, 0.0, 1.0))
             fid_sum += weight * sample_fidelity
             fid_sq_sum += weight * sample_fidelity * sample_fidelity
-            gO_acc += weight * beta * np.asarray(gO_time, dtype=np.float64)
+            gO_acc += weight * beta * gO_time
             if problem.delta_slice is not None:
-                gD_acc += weight * np.asarray(gD_time, dtype=np.float64)
+                gD_acc += weight * gD_time
 
     mean_final_infidelity = float(np.clip(inf_sum, 0.0, 1.0))
     mean_final_fidelity = float(np.clip(fid_sum, 0.0, 1.0))
     variance = max(fid_sq_sum - mean_final_fidelity * mean_final_fidelity, 0.0)
     std_final_fidelity = math.sqrt(variance)
 
-    gO_time_mean = gO_acc + grad_penalty_time
+    gO_time_mean = gO_acc + grad_pen_omega
     if problem.delta_slice is not None:
-        gD_time_mean = gD_acc
+        gD_time_mean = gD_acc + grad_pen_delta
     else:
         gD_time_mean = None
 
@@ -802,17 +770,17 @@ def evaluate_problem(
     problem: GrapeControlProblem,
     coeffs: NDArrayFloat,
     *,
-    neg_epsilon: float = 1e-6,
+    neg_kappa: float = 10.0,
 ) -> tuple[Dict[str, float], NDArrayFloat, Dict[str, Any]]:
     """Dispatch to the active objective and return cost, gradient, and extras."""
     omega, delta = problem.controls_from_coeffs(coeffs)
     objective = problem.objective
     if objective == "path":
-        cost_dict, grad_coeffs, extras = _evaluate_path(problem, omega, delta)
+        cost_dict, grad_coeffs, extras = _evaluate_path(problem, omega, delta, neg_kappa)
     elif objective == "ensemble":
-        cost_dict, grad_coeffs, extras = _evaluate_ensemble(problem, omega, delta, neg_epsilon)
+        cost_dict, grad_coeffs, extras = _evaluate_ensemble(problem, omega, delta, neg_kappa)
     else:
-        cost_dict, grad_coeffs, extras = _evaluate_terminal(problem, omega, delta, neg_epsilon)
+        cost_dict, grad_coeffs, extras = _evaluate_terminal(problem, omega, delta, neg_kappa)
     extras.setdefault("objective", objective)
     extras.setdefault("omega", omega)
     extras.setdefault("delta", delta)

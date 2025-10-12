@@ -84,7 +84,7 @@ def optimize_adam(
     grad_clip = options.get("grad_clip")
     grad_tol = float(options.get("grad_tol", 1e-4))
     rtol = float(options.get("rtol", 1e-5))
-    neg_epsilon = float(options.get("neg_epsilon", 1e-6))
+    neg_kappa = float(options.get("neg_kappa", options.get("neg_epsilon", 10.0)))
     max_time_s = options.get("max_time_s")
 
     coeffs = (coeffs0.copy() if coeffs0 is not None else problem.coeffs_init.copy()).astype(np.float64)
@@ -98,7 +98,7 @@ def optimize_adam(
 
     for iteration in range(1, max_iters + 1):
         iter_start = time.perf_counter()
-        cost_dict, grad_coeffs, extras = evaluate_problem(problem, coeffs, neg_epsilon=neg_epsilon)
+        cost_dict, grad_coeffs, extras = evaluate_problem(problem, coeffs, neg_kappa=neg_kappa)
         total_cost = float(cost_dict.get("total", 0.0))
         grad_norm = safe_norm(grad_coeffs)
         calls = int(extras.get("oracle_calls", 1))
@@ -148,7 +148,7 @@ def optimize_adam(
         status = "max_iters"
 
     state.status = status
-    final_cost, final_grad_coeffs, extras = evaluate_problem(problem, coeffs, neg_epsilon=neg_epsilon)
+    final_cost, final_grad_coeffs, extras = evaluate_problem(problem, coeffs, neg_kappa=neg_kappa)
     state.runtime_s = time.perf_counter() - start_time
     history = history_to_arrays(state.history)
 

@@ -6,6 +6,7 @@ from typing import Callable, Iterable, Mapping, MutableMapping, Sequence, Tuple
 import numpy as np
 import numpy.typing as npt
 
+from .penalties import compute_penalties, penalty_terms
 from .physics import adjoint_steps, fidelity_pure
 
 NDArrayFloat = npt.NDArray[np.float64]
@@ -18,12 +19,10 @@ __all__ = [
     "path_infidelity",
     "ensemble_expectation",
     "power_fluence_penalty",
-    "negativity_smooth_penalty",
     "penalty_terms",
     "total_cost",
     "grad_terminal_wrt_controls",
     "grad_power_fluence",
-    "grad_negativity_smooth",
     "accumulate_cost_and_grads",
     "check_time_consistency",
     "finite_and_real",
@@ -106,51 +105,6 @@ def power_fluence_penalty(
     return {"power_penalty": float(w_power) * fluence}
 
 
-def negativity_smooth_penalty(
-    omega: NDArrayFloat,
-    w_neg: float,
-    epsilon: float = 1e-6,
-) -> CostDict:
-    """Return smooth softplus-based penalty enforcing omega >= 0."""
-
-    omega = np.asarray(omega, dtype=np.float64)
-    eps = float(epsilon)
-    z = omega / eps
-    soft = eps * np.logaddexp(0.0, -z)
-    penalty = float(w_neg) * float(np.sum(soft * soft, dtype=np.float64))
-    return {"neg_penalty": penalty}
-
-
-
-def penalty_terms(
-    omega: NDArrayFloat,
-    dt_us: float,
-    *,
-    power_weight: float,
-    neg_weight: float,
-    neg_kappa: float,
-) -> tuple[float, float, NDArrayFloat]:
-    """Return penalty contributions and gradient with respect to omega."""
-
-    omega = np.asarray(omega, dtype=np.float64)
-    dt = float(dt_us)
-    grad = np.zeros_like(omega, dtype=np.float64)
-    power_penalty = 0.0
-    if power_weight != 0.0:
-        scale = float(power_weight)
-        power_penalty = 0.5 * scale * float(np.sum(omega * omega, dtype=np.float64) * dt)
-        grad += scale * omega * dt
-    neg_penalty = 0.0
-    if neg_weight != 0.0:
-        kappa = float(neg_kappa)
-        if kappa <= 0.0:
-            raise ValueError("neg_kappa must be positive.")
-        z = np.clip(omega / kappa, -60.0, 60.0)
-        soft = kappa * np.logaddexp(0.0, -z)
-        neg_penalty = float(neg_weight) * float(np.sum(soft * soft, dtype=np.float64))
-        sigma = 1.0 / (1.0 + np.exp(z))
-        grad += -2.0 * float(neg_weight) * soft * sigma
-    return power_penalty, neg_penalty, grad
 
 def total_cost(terms: Iterable[CostDict]) -> CostDict:
     """Combine individual term dictionaries and add a "total" entry."""
@@ -212,13 +166,6 @@ def grad_power_fluence(
     }
 
 
-def grad_negativity_smooth(
-    omega: NDArrayFloat,
-    w_neg: float,
-    epsilon: float = 1e-6,
-) -> GradDict:
-    """Return gradients of the smooth non-negativity penalty."""
-
     omega = np.asarray(omega, dtype=np.float64)
     eps = float(epsilon)
     z = omega / eps
@@ -237,7 +184,7 @@ def accumulate_cost_and_grads(
     psi_target: NDArrayComplex,
     w_power: float = 0.0,
     w_neg: float = 0.0,
-    neg_epsilon: float = 1e-6,
+    neg_kappa: float = 10.0,
     caches: MutableMapping[str, np.ndarray] | None = None,
 ) -> Tuple[CostDict, GradDict]:
     """Compute terminal cost plus optional penalties and their gradients."""
@@ -256,24 +203,26 @@ def accumulate_cost_and_grads(
     term_cost = 1.0 - float(np.real(np.trace(rho_T @ target_rho)))
 
     cost_terms = [{"terminal": term_cost}]
-    grad_terms = [grad_terminal_wrt_controls(omega, delta, dt_us, psi0, psi_target, caches)]
+    grad_time = grad_terminal_wrt_controls(omega, delta, dt_us, psi0, psi_target, caches)
+
+    pen_power, pen_neg, grad_pen_omega, grad_pen_delta = compute_penalties(
+        omega,
+        delta,
+        dt_us,
+        power_weight=w_power,
+        neg_weight=w_neg,
+        neg_kappa=neg_kappa,
+    )
 
     if w_power != 0.0:
-        cost_terms.append(power_fluence_penalty(omega, delta, dt_us, w_power))
-        grad_terms.append(grad_power_fluence(omega, delta, dt_us, w_power))
+        cost_terms.append({"power_penalty": pen_power})
     if w_neg != 0.0:
-        cost_terms.append(negativity_smooth_penalty(omega, w_neg, epsilon=neg_epsilon))
-        grad_terms.append(grad_negativity_smooth(omega, w_neg, epsilon=neg_epsilon))
+        cost_terms.append({"neg_penalty": pen_neg})
 
     combined_cost = total_cost(cost_terms)
 
-    total_grad_omega = np.zeros_like(omega)
-    total_grad_delta = np.zeros_like(delta)
-    for grad in grad_terms:
-        if "dJ/dOmega" in grad:
-            total_grad_omega += np.asarray(grad["dJ/dOmega"], dtype=np.float64)
-        if "dJ/dDelta" in grad:
-            total_grad_delta += np.asarray(grad["dJ/dDelta"], dtype=np.float64)
+    total_grad_omega = np.asarray(grad_time["dJ/dOmega"], dtype=np.float64) + grad_pen_omega
+    total_grad_delta = np.asarray(grad_time["dJ/dDelta"], dtype=np.float64) + grad_pen_delta
 
     grad_dict = {"dJ/dOmega": total_grad_omega, "dJ/dDelta": total_grad_delta}
     return combined_cost, grad_dict
