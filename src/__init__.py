@@ -52,6 +52,7 @@ from .notebook_runners import (
     build_base_config,
     method_options,
 )
+from .notebook_setup import activate_repository, find_repo_root
 from .analysis import (
     HistorySeries,
     PulseSummary,
@@ -124,6 +125,8 @@ __all__ = [
     "coerce_vector",
     "method_options",
     "prepare_baseline",
+    "activate_repository",
+    "find_repo_root",
     "HistorySeries",
     "PulseSummary",
     "ResultSummary",
