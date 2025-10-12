@@ -1,5 +1,4 @@
-﻿"""Public API for GRAPE coefficient workflows using microseconds and megahertz."""
-
+"""Public API for GRAPE coefficient workflows using microseconds and megahertz."""
 from .baselines import (
     BasisSpec,
     GrapeBaselineConfig,
@@ -22,12 +21,8 @@ from .physics import (
 )
 from .cost import (
     terminal_infidelity,
-    path_infidelity,
-    ensemble_expectation,
-    power_fluence_penalty,
     total_cost,
     grad_terminal_wrt_controls,
-    grad_power_fluence,
     accumulate_cost_and_grads,
 )
 from .penalties import compute_penalties, penalty_terms
@@ -45,7 +40,6 @@ from .plotting import (
     plot_robustness_heatmap,
 )
 from .utils import ensure_dir, json_ready, require_real_finite, set_random_seed, time_block
-
 from .notebook_runners import (
     BaselineArrays,
     prepare_baseline,
@@ -53,7 +47,6 @@ from .notebook_runners import (
     build_base_config,
     method_options,
 )
-
 __all__ = [
     "BaselineSpec",
     "BasisSpec",
@@ -72,23 +65,19 @@ __all__ = [
     "crab_linear_basis",
     "ensure_dir",
     "ensure_time_grid_match",
-    "ensemble_expectation",
     "fidelity_pure",
     "grad_control_wrt_coeffs",
-    "grad_power_fluence",
     "grad_terminal_wrt_controls",
     "hamiltonian_t",
     "json_ready",
     "make_time_grid",
     "override_from_dict",
-    "path_infidelity",
     "penalty_terms",
     "plot_cost_history",
     "plot_penalties_history",
     "plot_pulses",
     "plot_robustness_heatmap",
     "plot_summary",
-    "power_fluence_penalty",
     "propagate_piecewise_const",
     "propagate_with_controls",
     "register_optimizer",

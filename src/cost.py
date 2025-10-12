@@ -16,16 +16,10 @@ GradDict = dict[str, NDArrayFloat]
 
 __all__ = [
     "terminal_infidelity",
-    "path_infidelity",
-    "ensemble_expectation",
-    "power_fluence_penalty",
     "penalty_terms",
     "total_cost",
     "grad_terminal_wrt_controls",
-    "grad_power_fluence",
     "accumulate_cost_and_grads",
-    "check_time_consistency",
-    "finite_and_real",
 ]
 
 SIGMA_X: NDArrayComplex = np.array([[0.0, 1.0], [1.0, 0.0]], dtype=np.complex128)
@@ -39,70 +33,10 @@ def terminal_infidelity(psi_T: NDArrayComplex, psi_target: NDArrayComplex) -> Co
     return {"terminal": float(1.0 - fidelity)}
 
 
-def path_infidelity(
-    psi_path: NDArrayComplex,
-    psi_ref_path: NDArrayComplex | None = None,
-    weights: NDArrayFloat | None = None,
-) -> CostDict:
-    """Return path infidelity along a trajectory (defaults to zero without reference)."""
-
-    psi_path = np.asarray(psi_path, dtype=np.complex128)
-    if psi_path.ndim != 2 or psi_path.shape[1] != 2:
-        raise ValueError("psi_path must have shape (T, 2) or (T + 1, 2).")
-    if psi_ref_path is None:
-        return {"path": 0.0}
-    psi_ref = np.asarray(psi_ref_path, dtype=np.complex128)
-    if psi_ref.shape != psi_path.shape:
-        raise ValueError("psi_ref_path must match psi_path shape.")
-    overlaps = np.einsum("ti,ti->t", psi_ref.conj(), psi_path)
-    fidelities = np.abs(overlaps) ** 2
-    weights_arr = (
-        np.asarray(weights, dtype=np.float64)
-        if weights is not None
-        else np.ones_like(fidelities, dtype=np.float64)
-    )
-    if weights_arr.shape != fidelities.shape:
-        raise ValueError("weights must match the number of time samples.")
-    total_weight = float(np.sum(weights_arr))
-    if total_weight <= 0.0:
-        raise ValueError("weights must sum to a positive value.")
-    weights_arr = weights_arr / total_weight
-    cost = float(np.sum(weights_arr * (1.0 - fidelities)))
-    return {"path": cost}
 
 
-def ensemble_expectation(
-    cost_fn: Callable[[Mapping[str, np.ndarray]], CostDict],
-    samples: Sequence[Mapping[str, np.ndarray]],
-) -> CostDict:
-    """Return the average cost dictionary across an ensemble of samples."""
-
-    if not samples:
-        raise ValueError("samples must not be empty.")
-    accum: dict[str, float] = {}
-    for sample in samples:
-        term = cost_fn(sample)
-        for key, value in term.items():
-            accum[key] = accum.get(key, 0.0) + float(value)
-    scale = float(len(samples))
-    for key in accum:
-        accum[key] /= scale
-    return accum
 
 
-def power_fluence_penalty(
-    omega: NDArrayFloat,
-    delta: NDArrayFloat,
-    dt_us: float,
-    w_power: float,
-) -> CostDict:
-    """Return fluence penalty w_power * dt * sum(omega^2 + delta^2)."""
-
-    omega = np.asarray(omega, dtype=np.float64)
-    delta = np.asarray(delta, dtype=np.float64)
-    dt = float(dt_us)
-    fluence = dt * float(np.sum(omega * omega + delta * delta, dtype=np.float64))
-    return {"power_penalty": float(w_power) * fluence}
 
 
 
@@ -150,29 +84,6 @@ def grad_terminal_wrt_controls(
     return {"dJ/dOmega": g_omega, "dJ/dDelta": g_delta}
 
 
-def grad_power_fluence(
-    omega: NDArrayFloat,
-    delta: NDArrayFloat,
-    dt_us: float,
-    w_power: float,
-) -> GradDict:
-    """Return gradients of the fluence penalty with respect to omega and delta."""
-
-    dt = float(dt_us)
-    scale = 2.0 * float(w_power) * dt
-    return {
-        "dJ/dOmega": scale * np.asarray(omega, dtype=np.float64),
-        "dJ/dDelta": scale * np.asarray(delta, dtype=np.float64),
-    }
-
-
-    omega = np.asarray(omega, dtype=np.float64)
-    eps = float(epsilon)
-    z = omega / eps
-    soft = eps * np.logaddexp(0.0, -z)
-    sigma = 1.0 / (1.0 + np.exp(z))
-    grad = -2.0 * float(w_neg) * soft * sigma
-    return {"dJ/dOmega": grad, "dJ/dDelta": np.zeros_like(omega)}
 
 
 def accumulate_cost_and_grads(
@@ -228,24 +139,5 @@ def accumulate_cost_and_grads(
     return combined_cost, grad_dict
 
 
-def check_time_consistency(t: NDArrayFloat, omega: NDArrayFloat, delta: NDArrayFloat) -> None:
-    """Ensure time grid and controls share compatible lengths."""
-
-    t = np.asarray(t, dtype=np.float64)
-    omega = np.asarray(omega, dtype=np.float64)
-    delta = np.asarray(delta, dtype=np.float64)
-    if t.size not in {omega.size, omega.size + 1}:
-        raise ValueError("time grid must have length equal to controls or controls + 1.")
-    if omega.shape != delta.shape:
-        raise ValueError("omega and delta must share shape.")
 
 
-def finite_and_real(*arrays: np.ndarray) -> None:
-    """Validate that all provided arrays contain finite real entries."""
-
-    for arr in arrays:
-        arr_np = np.asarray(arr)
-        if not np.isfinite(arr_np).all():
-            raise ValueError("Arrays must contain only finite values.")
-        if np.iscomplexobj(arr_np) and np.any(np.abs(arr_np.imag) > 0.0):
-            raise ValueError("Arrays must be real-valued.")
