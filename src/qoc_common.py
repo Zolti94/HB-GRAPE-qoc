@@ -15,11 +15,11 @@ from typing import Any, Dict, Tuple
 import numpy as np
 
 from .penalties import compute_penalties, penalty_terms as penalty_terms_shared
+from .physics import I2, SIGMA_X, SIGMA_Z
 
 # ---------- Physics ----------
-I2 = np.eye(2, dtype=np.complex128)
-sigma_x = np.array([[0, 1], [1, 0]], dtype=np.complex128)
-sigma_z = np.array([[1, 0], [0, -1]], dtype=np.complex128)
+sigma_x = SIGMA_X
+sigma_z = SIGMA_Z
 
 def U_step(omega: float, delta: float, dt: float) -> np.ndarray:
     """Analytic SU(2) step for H = 0.5 * (delta * sigma_z + omega * sigma_x)."""

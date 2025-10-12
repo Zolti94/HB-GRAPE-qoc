@@ -13,7 +13,7 @@ from ..config import ExperimentConfig, PenaltyConfig
 from ..controls import coeffs_to_control, crab_linear_basis
 from ..cost import accumulate_cost_and_grads
 from ..penalties import compute_penalties
-from ..physics import propagate_piecewise_const, fidelity_pure
+from ..physics import propagate_piecewise_const, fidelity_pure, SIGMA_X, SIGMA_Z
 from ..crab_notebook_utils import ground_state_projectors
 
 NDArrayFloat = npt.NDArray[np.float64]
@@ -32,8 +32,6 @@ __all__ = [
     "history_to_arrays",
 ]
 
-SIGMA_X = np.array([[0.0, 1.0], [1.0, 0.0]], dtype=np.complex128)
-SIGMA_Z = np.array([[1.0, 0.0], [0.0, -1.0]], dtype=np.complex128)
 SIGMA_X_HALF = 0.5 * SIGMA_X
 SIGMA_Z_HALF = 0.5 * SIGMA_Z
 _TWO_PI = 2.0 * np.pi

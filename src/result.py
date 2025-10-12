@@ -9,39 +9,11 @@ from typing import Any, Mapping
 import numpy as np
 
 from .config import ExperimentConfig
+from .utils import json_ready
 
 __all__ = ["Result", "ResultPayload"]
 
 ResultPayload = Mapping[str, Any]
-
-
-def _json_ready(value: Any) -> Any:
-    """Convert nested experiment outputs to JSON-serializable objects.
-
-    Parameters
-    ----------
-    value : Any
-        Payload captured during optimization (may include NumPy arrays, paths, or datetimes).
-
-    Returns
-    -------
-    Any
-        Plain Python equivalent suitable for ``json.dumps``.
-    """
-
-    if isinstance(value, (np.floating, np.integer)):
-        return value.item()
-    if isinstance(value, np.ndarray):
-        return value.tolist()
-    if isinstance(value, (list, tuple)):
-        return [_json_ready(v) for v in value]
-    if isinstance(value, dict):
-        return {str(k): _json_ready(v) for k, v in value.items()}
-    if isinstance(value, Path):
-        return str(value)
-    if isinstance(value, datetime):
-        return value.isoformat()
-    return value
 
 
 @dataclass(slots=True)
@@ -84,11 +56,11 @@ class Result:
             "run_name": self.run_name,
             "artifacts_dir": str(self.artifacts_dir),
             "config": self.config.to_dict(),
-            "history": {k: _json_ready(v) for k, v in self.history.items()},
+            "history": {k: json_ready(v) for k, v in self.history.items()},
             "final_metrics": {k: float(v) for k, v in self.final_metrics.items()},
-            "pulses": {k: _json_ready(v) for k, v in self.pulses.items()},
+            "pulses": {k: json_ready(v) for k, v in self.pulses.items()},
             "created_at": self.created_at.isoformat(),
-            "optimizer_state": _json_ready(self.optimizer_state) if self.optimizer_state is not None else None,
+            "optimizer_state": json_ready(self.optimizer_state) if self.optimizer_state is not None else None,
         }
 
     @classmethod
@@ -118,7 +90,10 @@ class Result:
     def summary(self) -> dict[str, Any]:
         """Return a compact overview consisting of run name, cost, and iterations."""
 
-        cost = float(self.final_metrics.get("cost", np.nan))
+        cost_value = self.final_metrics.get("total")
+        if cost_value is None:
+            cost_value = self.final_metrics.get("cost", np.nan)
+        cost = float(cost_value)
         # All history series share a length; use any entry to infer iteration count.
         iterations = int(len(next(iter(self.history.values()))) if self.history else 0)
         return {"run_name": self.run_name, "cost": cost, "iterations": iterations}

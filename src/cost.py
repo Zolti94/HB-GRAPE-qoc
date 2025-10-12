@@ -7,7 +7,7 @@ import numpy as np
 import numpy.typing as npt
 
 from .penalties import compute_penalties, penalty_terms
-from .physics import adjoint_steps, fidelity_pure
+from .physics import adjoint_steps, fidelity_pure, SIGMA_X, SIGMA_Z
 
 NDArrayFloat = npt.NDArray[np.float64]
 NDArrayComplex = npt.NDArray[np.complex128]
@@ -21,10 +21,6 @@ __all__ = [
     "grad_terminal_wrt_controls",
     "accumulate_cost_and_grads",
 ]
-
-SIGMA_X: NDArrayComplex = np.array([[0.0, 1.0], [1.0, 0.0]], dtype=np.complex128)
-SIGMA_Z: NDArrayComplex = np.array([[1.0, 0.0], [0.0, -1.0]], dtype=np.complex128)
-
 
 def terminal_infidelity(psi_T: NDArrayComplex, psi_target: NDArrayComplex) -> CostDict:
     """Return terminal infidelity cost = 1 - |<psi_target|psi_T>|^2."""

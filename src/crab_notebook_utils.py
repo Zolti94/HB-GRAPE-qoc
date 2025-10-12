@@ -6,12 +6,8 @@ from typing import Any, Dict, Mapping
 import numpy as np
 
 from .utils import ensure_dir, json_ready
-from src.qoc_common import penalty_terms
-
-I2 = np.eye(2, dtype=np.complex128)
-SIGMA_X = np.array([[0.0, 1.0], [1.0, 0.0]], dtype=np.complex128)
-SIGMA_Y = np.array([[0.0, -1.0j], [1.0j, 0.0]], dtype=np.complex128)
-SIGMA_Z = np.array([[1.0, 0.0], [0.0, -1.0]], dtype=np.complex128)
+from .qoc_common import penalty_terms
+from .physics import I2, SIGMA_X, SIGMA_Y, SIGMA_Z
 
 
 def collect_versions(modules: Mapping[str, Any]) -> Dict[str, str]:

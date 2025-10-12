@@ -13,6 +13,8 @@ from typing import Any, Dict, Mapping, MutableMapping, Sequence, Tuple
 
 import numpy as np
 
+from ..utils import json_ready
+
 __all__ = [
     "BasisSpec",
     "GrapeBaselineConfig",
@@ -247,7 +249,7 @@ class GrapeBaselineConfig:
             "basis": self.basis.to_dict(),
             "rho0": np.asarray(self.rho0, dtype=np.complex128).tolist(),
             "target": np.asarray(self.target, dtype=np.complex128).tolist(),
-            "extra_metadata": _json_ready(self.extra_metadata),
+            "extra_metadata": json_ready(self.extra_metadata),
         }
         if self.delta is not None:
             payload["delta"] = self.delta.to_dict()
@@ -465,7 +467,7 @@ def build_grape_baseline(config: GrapeBaselineConfig) -> Tuple[Dict[str, np.ndar
     }
     if config.delta is not None:
         metadata["delta"] = config.delta.to_dict()
-    metadata.update(_json_ready(config.extra_metadata))
+    metadata.update(json_ready(config.extra_metadata))
     return arrays, metadata
 
 
@@ -494,22 +496,5 @@ def write_baseline(
     with (destination / "metadata.json").open("w", encoding="utf-8") as f:
         import json
 
-        json.dump(_json_ready(metadata), f, indent=2)
-
-
-def _json_ready(value: Any) -> Any:
-    if isinstance(value, Mapping):
-        return {str(k): _json_ready(v) for k, v in value.items()}
-    if isinstance(value, np.ndarray):
-        if np.issubdtype(value.dtype, np.complexfloating):
-            return value.tolist()
-        return value.tolist()
-    if isinstance(value, (list, tuple)):
-        return [_json_ready(v) for v in value]
-    if isinstance(value, (np.floating, np.integer)):
-        return value.item()
-    if isinstance(value, np.complexfloating):
-        return complex(value)
-    return value
-
+        json.dump(json_ready(metadata), f, indent=2)
 

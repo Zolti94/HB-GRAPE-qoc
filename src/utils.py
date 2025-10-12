@@ -6,6 +6,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Generator
+from datetime import datetime
 
 import numpy as np
 import numpy.typing as npt
@@ -30,7 +31,7 @@ def ensure_dir(path: str | Path) -> Path:
 
 
 def json_ready(value: Any) -> Any:
-    """Recursively convert numpy types to built-in Python types."""
+    """Recursively convert numpy, pathlib, and datetime types to JSON primitives."""
 
     if isinstance(value, (np.integer, np.floating)):
         return value.item()
@@ -44,7 +45,11 @@ def json_ready(value: Any) -> Any:
         return [json_ready(v) for v in value]
     if isinstance(value, Path):
         return str(value)
+    if isinstance(value, datetime):
+        return value.isoformat()
     return value
+
+
 def require_real_finite(name: str, array: npt.NDArray[Any]) -> NDArrayFloat:
     """Return the array as float64 after verifying it is real and finite."""
 
