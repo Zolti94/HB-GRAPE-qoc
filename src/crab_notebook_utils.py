@@ -6,7 +6,6 @@ from typing import Any, Dict, Mapping
 import numpy as np
 
 from .utils import ensure_dir, json_ready
-from .qoc_common import penalty_terms
 from .physics import I2, SIGMA_X, SIGMA_Y, SIGMA_Z
 
 
@@ -101,7 +100,6 @@ __all__ = [
     "collect_versions",
     "validate_time_grid",
     "assert_finite",
-    "penalty_terms",
     "ground_state_projectors",
     "bloch_coordinates",
     "population_excited",

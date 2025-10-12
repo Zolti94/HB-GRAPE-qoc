@@ -26,7 +26,7 @@ Let \(\Omega\) denote the discretised control and \(\Delta t\) the time step.
 - **Negativity penalty** (weight `neg_weight`, softplus scale `neg_kappa`):
   
   \[ J_{\text{neg}} = \frac{w_n}{2} \sum_k \text{softplus}(-\kappa\,\Omega_k)^2\,\Delta t. \]
-- The shared helper `src.qoc_common.penalty_terms` returns these penalty values together with the gradient contribution \(\partial J/\partial \Omega\). Both `terminal_cost[_and_grad]` and the CRAB notebooks call this helper.
+- The shared helper `src.penalties.penalty_terms` returns these penalty values together with the gradient contribution \(\partial J/\partial \Omega\). Both `terminal_cost[_and_grad]` and the CRAB notebooks call this helper.
 
 ## 4. CRAB parameterisation
 - Express each control as a baseline envelope plus a truncated sine basis:
