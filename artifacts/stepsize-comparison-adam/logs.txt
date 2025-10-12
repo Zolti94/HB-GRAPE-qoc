@@ -1,1 +1,1 @@
-status=converged_rtol total=0.005965
+status=max_iters total=0.001499

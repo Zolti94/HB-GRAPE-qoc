@@ -89,8 +89,8 @@
     "method": "adam"
   },
   "penalties": {
-    "power_weight": 0.001,
-    "neg_weight": 2e-09,
+    "power_weight": 1e-05,
+    "neg_weight": 1e-08,
     "neg_kappa": 10.0
   },
   "metadata": {

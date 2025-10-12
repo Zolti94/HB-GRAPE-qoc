@@ -9,7 +9,7 @@
       },
       "omega": {
         "kind": "polynomial",
-        "area_pi": 3.2,
+        "area_pi": 1.0,
         "amplitude_scale": null,
         "options": {}
       },
@@ -76,7 +76,7 @@
   "artifacts_root": "artifacts",
   "random_seed": null,
   "optimizer_options": {
-    "max_iters": 2000,
+    "max_iters": 250,
     "grad_tol": 1e-10,
     "rtol": 1e-10,
     "max_time_s": 300.0,
@@ -88,8 +88,8 @@
     "method": "adam"
   },
   "penalties": {
-    "power_weight": 5e-05,
-    "neg_weight": 1.0,
+    "power_weight": 1e-05,
+    "neg_weight": 1e-08,
     "neg_kappa": 10.0
   },
   "metadata": {

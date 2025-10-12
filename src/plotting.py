@@ -18,6 +18,7 @@ __all__ = [
     "plot_summary",
     "plot_penalties_history",
     "plot_robustness_heatmap",
+    "save_figure",
 ]
 
 _TWO_PI = 2.0 * np.pi
@@ -44,7 +45,14 @@ def _ensure_figures_dir(result: Result) -> Path:
     return figures_dir
 
 
-def _save_figure(fig: plt.Figure, directory: Path, stem: str, save_svg: bool = False) -> None:
+def save_figure(
+    fig: plt.Figure,
+    directory: Path,
+    stem: str,
+    *,
+    save_svg: bool = False,
+    show: bool = False,
+) -> None:
     """Save a figure to PNG (and optionally SVG) with consistent formatting.
 
     Parameters
@@ -57,6 +65,8 @@ def _save_figure(fig: plt.Figure, directory: Path, stem: str, save_svg: bool = F
         Filename stem used for the exported images.
     save_svg : bool, optional
         When ``True`` also export an SVG alongside the PNG.
+    show : bool, optional
+        When ``True`` call ``fig.show()`` after saving.
     """
 
     directory.mkdir(parents=True, exist_ok=True)
@@ -65,6 +75,8 @@ def _save_figure(fig: plt.Figure, directory: Path, stem: str, save_svg: bool = F
     if save_svg:
         svg_path = directory / f"{stem}.svg"
         fig.savefig(svg_path, bbox_inches="tight")
+    if show:
+        fig.show()
 
 
 def plot_cost_history(result: Result, *, save: bool = True, ax: Axes | None = None) -> Axes:
@@ -115,7 +127,7 @@ def plot_cost_history(result: Result, *, save: bool = True, ax: Axes | None = No
 
     if save:
         figures_dir = _ensure_figures_dir(result)
-        _save_figure(fig, figures_dir, "cost_history")
+        save_figure(fig, figures_dir, "cost_history")
 
     return ax
 
@@ -151,7 +163,7 @@ def plot_penalties_history(result: Result, *, save: bool = True, ax: Axes | None
         ax.text(0.5, 0.5, "No penalty terms recorded", ha="center", va="center", fontsize=11)
         if save:
             figures_dir = _ensure_figures_dir(result)
-            _save_figure(fig, figures_dir, "penalties_history")
+            save_figure(fig, figures_dir, "penalties_history")
         return ax
 
     iter_series = history.get("iter")
@@ -178,7 +190,7 @@ def plot_penalties_history(result: Result, *, save: bool = True, ax: Axes | None
 
     if save:
         figures_dir = _ensure_figures_dir(result)
-        _save_figure(fig, figures_dir, "penalties_history")
+        save_figure(fig, figures_dir, "penalties_history")
 
     return ax
 
@@ -234,7 +246,7 @@ def plot_pulses(result: Result, *, save: bool = True, axes: Sequence[Axes] | Non
 
     if save:
         figures_dir = _ensure_figures_dir(result)
-        _save_figure(fig, figures_dir, "pulses")
+        save_figure(fig, figures_dir, "pulses")
 
     return axes
 
@@ -287,7 +299,7 @@ def plot_summary(result: Result, *, save: bool = True, ax: Axes | None = None) -
 
     if save:
         figures_dir = _ensure_figures_dir(result)
-        _save_figure(fig, figures_dir, "summary")
+        save_figure(fig, figures_dir, "summary")
 
     return ax
 
@@ -438,7 +450,7 @@ def plot_robustness_heatmap(
 
     if save:
         stem = f"heatmap_terminal_vs_detuning_area_{label}"
-        _save_figure(fig, save_dir, stem, save_svg=save_svg)
+        save_figure(fig, save_dir, stem, save_svg=save_svg)
         np.savez(
             save_dir / f"robustness_terminal_vs_detuning_area_{label}.npz",
             detuning_MHz=detuning_MHz_grid,
