@@ -76,7 +76,7 @@
   "artifacts_root": "artifacts",
   "random_seed": null,
   "optimizer_options": {
-    "max_iters": 250,
+    "max_iters": 400,
     "grad_tol": 1e-10,
     "rtol": 1e-10,
     "max_time_s": 300.0,
