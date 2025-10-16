@@ -36,6 +36,9 @@ def _evaluate_terminal(
 ) -> Tuple[Dict[str, float], NDArrayFloat, Dict[str, Any]]:
     """Evaluate terminal objective value and gradients for given controls."""
 
+    # Determine which detuning waveform to propagate. When detuning coefficients
+    # are not being optimized we fall back to the baseline control so downstream
+    # physics sees a consistent pair of waveforms.
     delta_eval = (
         delta
         if delta is not None
@@ -46,6 +49,8 @@ def _evaluate_terminal(
         )
     )
 
+    # Accumulate terminal fidelity, penalties, and their time-domain gradients
+    # using the shared helper so that all optimizers agree on the physics model.
     cost_dict, grad_dict = accumulate_cost_and_grads(
         omega,
         delta_eval,
@@ -57,6 +62,9 @@ def _evaluate_terminal(
         neg_kappa=neg_kappa,
     )
 
+    # Project the time-domain gradients back into the CRAB coefficient basis.
+    # Detuning gradients are only retained when the optimizer is actually
+    # manipulating the detuning coefficients.
     gO_time = np.asarray(grad_dict.get("dJ/dOmega", np.zeros_like(omega)), dtype=np.float64)
     gD_time_full = np.asarray(grad_dict.get("dJ/dDelta", np.zeros_like(delta_eval)), dtype=np.float64)
     gD_for_coeffs = gD_time_full if problem.delta_slice is not None else None
@@ -68,6 +76,8 @@ def _evaluate_terminal(
         "dJ/dDelta": gD_time_full if gD_for_coeffs is not None else np.zeros_like(delta_eval),
     }
 
+    # Record a consistent set of scalar metrics so notebooks see comparable
+    # payloads regardless of the active optimizer.
     cost = {
         "terminal": float(cost_dict.get("terminal", 0.0)),
         "path": 0.0,
@@ -96,6 +106,8 @@ def _evaluate_path(
 ) -> Tuple[Dict[str, float], NDArrayFloat, Dict[str, Any]]:
     """Evaluate path objective using instantaneous ground-state projectors."""
 
+    # Use optimizer-provided detuning when available; otherwise reuse the
+    # deterministic baseline so the Hamiltonian is fully specified.
     delta_eval = (
         delta
         if delta is not None
@@ -105,13 +117,19 @@ def _evaluate_path(
             else np.zeros_like(omega)
         )
     )
+    # Propagate the state vector and density matrix under the candidate controls.
     prop = propagate_piecewise_const(omega, delta_eval, problem.dt_us, psi0=problem.psi0)
     rho_path = np.asarray(prop["rho_path"], dtype=np.complex128)
+    psi_path = np.asarray(prop["psi_path"], dtype=np.complex128)
     U_hist = np.asarray(prop["U_hist"], dtype=np.complex128)
-    rhos = rho_path[:-1]
+    rhos = rho_path[1:]
+    # Instantaneous ground-state projectors define the target manifold the
+    # trajectory should follow during the sweep.
     projectors = ground_state_projectors(omega, delta_eval)
     total_time = problem.t_total_us if problem.t_total_us > 0.0 else problem.dt_us * max(len(omega), 1)
     dt_over_total = problem.dt_us / total_time if total_time > 0.0 else 0.0
+    # d(projector)/d(control) contributions enforce alignment with the reference
+    # path; we accumulate both omega and delta components.
     grad_proj_omega = np.zeros_like(omega, dtype=np.float64)
     grad_proj_delta = np.zeros_like(delta_eval, dtype=np.float64)
     for idx, (om, de) in enumerate(zip(omega, delta_eval)):
@@ -128,18 +146,17 @@ def _evaluate_path(
         rho_k = rhos[idx]
         grad_proj_omega[idx] = -dt_over_total * float(np.real(np.trace(dP_domega @ rho_k)))
         grad_proj_delta[idx] = -dt_over_total * float(np.real(np.trace(dP_ddelta @ rho_k)))
+    # Aggregate the projector overlaps to obtain the discrete-time path fidelity.
     overlaps = np.real(np.einsum("kij,kji->k", projectors, rhos))
     path_fidelity = float(np.clip((problem.dt_us / total_time) * overlaps.sum(), 0.0, 1.0))
     path_infidelity = 1.0 - path_fidelity
-    psi_T = rho_path[-1]
-    if isinstance(psi_T, np.ndarray) and psi_T.ndim == 1:
-        overlap = np.vdot(problem.psi_target, psi_T)
-        final_fidelity = float(np.clip(np.real(overlap * overlap.conjugate()), 0.0, 1.0))
-    else:
-        proj = np.outer(problem.psi_target, np.conjugate(problem.psi_target))
-        final_fidelity = float(np.clip(np.real(np.trace(psi_T @ proj)), 0.0, 1.0))
+    # Terminal objective reuses the propagated state vector for consistency with
+    # the terminal cost computation.
+    psi_final = np.asarray(prop["psi_T"], dtype=np.complex128).reshape(-1)
+    final_fidelity = float(np.clip(fidelity_pure(psi_final, problem.psi_target), 0.0, 1.0))
     final_infidelity = 1.0 - final_fidelity
 
+    # Power / negativity penalties are shared with the other objectives.
     pen_power, pen_neg, grad_pen_omega, grad_pen_delta = compute_penalties(
         omega,
         delta_eval,
@@ -152,6 +169,8 @@ def _evaluate_path(
     Nt = omega.size
     lams = np.zeros((Nt + 1, 2, 2), dtype=np.complex128)
     lams[-1] = (problem.dt_us / total_time) * projectors[-1]
+    # Backward propagation of the co-states (adjoint method) captures how the
+    # path tracking term responds to perturbations at each time step.
     for k in range(Nt - 1, -1, -1):
         U = U_hist[k]
         lams[k] = U.conj().T @ (lams[k + 1]) @ U + (problem.dt_us / total_time) * projectors[k]
@@ -172,6 +191,8 @@ def _evaluate_path(
     else:
         gD_time_total = None
 
+    # Project the accumulated time-domain gradients back into CRAB coefficient
+    # space for the optimizer step.
     grad_coeffs = problem.gradients_to_coeffs(gO_time_total, gD_time_total)
 
     cost = {
