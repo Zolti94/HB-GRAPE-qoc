@@ -168,7 +168,8 @@ def _evaluate_path(
 
     Nt = omega.size
     lams = np.zeros((Nt + 1, 2, 2), dtype=np.complex128)
-    lams[-1] = (problem.dt_us / total_time) * projectors[-1]
+    lams[-1] = projectors[-1]
+    lams[-2] = U_hist[-1].conj().T @ lams[-1] @ U_hist[-1] + (problem.dt_us / total_time) * projectors[-2]
     # Backward propagation of the co-states (adjoint method) captures how the
     # path tracking term responds to perturbations at each time step.
     for k in range(Nt - 1, -1, -1):
@@ -179,7 +180,7 @@ def _evaluate_path(
     for k in range(Nt):
         rho_k = rhos[k]
         lam_next = lams[k]
-        gO_time[k] = -np.imag(np.trace(lam_next @ (SIGMA_X_HALF @ rho_k - rho_k @ SIGMA_X_HALF))) * problem.dt_us
+        gO_time[k] = -np.imag(np.trace(lam_next @ (SIGMA_X_HALF @ rho_k - rho_k @ SIGMA_X_HALF))) * problem.dt_us 
         gD_time[k] = -np.imag(np.trace(lam_next @ (SIGMA_Z_HALF @ rho_k - rho_k @ SIGMA_Z_HALF))) * problem.dt_us
 
     gO_time += grad_proj_omega
