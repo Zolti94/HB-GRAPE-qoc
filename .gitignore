@@ -9,6 +9,19 @@ __pycache__/
 # Ignore Jupyter checkpoints
 .ipynb_checkpoints/
 
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.nox/
+.tox/
+
+# Build / distribution artefacts
+build/
+dist/
+*.egg-info/
+
 # Ignore output / results (large or regenerable)
 outputs/
 results/
@@ -19,3 +32,14 @@ figures/
 # Ignore temporary logs
 *.log
 *.tmp
+
+# Editor / OS clutter
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Ad-hoc scratch helpers
+.tmp*.py
+tmp_*.py
+temp*.txt
