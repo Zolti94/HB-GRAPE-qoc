@@ -9,7 +9,7 @@
       },
       "omega": {
         "kind": "polynomial",
-        "area_pi": 1.0,
+        "area_pi": 4.0,
         "amplitude_scale": null,
         "options": {}
       },
@@ -65,9 +65,9 @@
       ],
       "extra_metadata": {},
       "delta": {
-        "kind": "linear_chirp",
+        "kind": "polynomial_chirp",
         "area_pi": 0.0,
-        "amplitude_scale": 40.0,
+        "amplitude_scale": 150.0,
         "options": {}
       }
     }
@@ -76,7 +76,7 @@
   "artifacts_root": "artifacts",
   "random_seed": null,
   "optimizer_options": {
-    "max_iters": 400,
+    "max_iters": 2000,
     "grad_tol": 1e-10,
     "rtol": 1e-10,
     "max_time_s": 300.0,
