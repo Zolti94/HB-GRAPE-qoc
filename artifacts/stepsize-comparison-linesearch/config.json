@@ -83,7 +83,7 @@
     "optimize_delta": true,
     "alpha0": 10.0,
     "ls_beta": 0.5,
-    "ls_sigma": 1e-08,
+    "ls_sigma": 0.2,
     "ls_max_backtracks": 15,
     "method": "linesearch"
   },
