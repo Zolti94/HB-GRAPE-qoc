@@ -205,8 +205,8 @@ def build_grape_problem(config: ExperimentConfig) -> Tuple[GrapeControlProblem, 
         "beta_min": 0.9,
         "beta_max": 1.1,
         "num_beta": 5,
-        "detuning_MHz_min": -delta_max_MHz,
-        "detuning_MHz_max": delta_max_MHz,
+        "detuning_MHz_min": -delta_max_MHz*0.1,
+        "detuning_MHz_max":  delta_max_MHz*0.1,
         "num_detuning": 5,
     }
     ensemble_settings = dict(config.metadata.get("ensemble_params", options.get("ensemble_params", {})))
