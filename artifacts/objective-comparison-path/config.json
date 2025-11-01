@@ -3,8 +3,8 @@
     "name": "objective-comparison",
     "params": {
       "time_grid": {
-        "duration_us": 10.0,
-        "num_points": 5001,
+        "duration_us": 1.0,
+        "num_points": 2001,
         "start_us": 0.0
       },
       "omega": {
@@ -67,7 +67,7 @@
       "delta": {
         "kind": "polynomial_chirp",
         "area_pi": 0.0,
-        "amplitude_scale": 1.5,
+        "amplitude_scale": 15.0,
         "options": {}
       }
     }
@@ -81,7 +81,7 @@
     "rtol": 1e-10,
     "max_time_s": 3600.0,
     "optimize_delta": true,
-    "learning_rate": 0.0005,
+    "learning_rate": 0.05,
     "beta1": 0.9,
     "beta2": 0.999,
     "epsilon": 1e-08,
