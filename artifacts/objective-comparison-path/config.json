@@ -4,7 +4,7 @@
     "params": {
       "time_grid": {
         "duration_us": 0.1,
-        "num_points": 2001,
+        "num_points": 2000,
         "start_us": 0.0
       },
       "omega": {
