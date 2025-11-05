@@ -1,0 +1,134 @@
+simulation:
+  solver_name: "custom SU(2) propagator (propagate_piecewise_const)"
+  time_total_us: 0.1
+  n_time_samples: 2000
+  dt_us: 5.002501250625313e-05
+  atol: null
+  rtol: null
+  initial_state: "|0>"
+  target_state: "|1>"
+  hilbert_dim: 2
+  libraries:
+    qutip_version: null
+    numpy_version: null
+    scipy_version: null
+    matplotlib_version: null
+    qiskit_runtime_version: null
+  frequency_units_convention: "angular radians per microsecond"
+  differentiation_method: "Adjoint-state gradient with commutators (analytic)"
+controls_and_basis:
+  omega_basis_functions: 8
+  delta_basis_functions: 4
+  pulse_area_normalization: "Omega baseline scaled to area 4π"
+  detuning_scale_MHz: 23.8732414637843
+  original_pulse_formulas: |
+    s = 2*(t - t0)/duration - 1
+    omega_shape(s) = 1 - 3*s^4 + 2*s^6
+    delta_shape(s) = 1.25*s - 0.25*s^3
+  scaling_details: |
+    Omega uses area_pi = 4.0 so ∑Ω dt = 4π; Delta uses area_pi = 0 with amplitude_scale = 150 rad/µs applied after area normalisation.
+objectives_and_penalties:
+  c1_definition_ref: "Terminal infidelity cost via accumulate_cost_and_grads"
+  c2_definition_ref: "Path-tracking objective using instantaneous ground-state projectors"
+  c3_definition_ref: "Ensemble-averaged terminal infidelity across beta/detuning grid"
+  penalties:
+    power_weight: 1.0e-05
+    neg_weight: 1.0e-08
+    neg_kappa: 10.0
+    other_penalties: []
+  optimizer_budgets:
+    max_iterations: 2000
+    convergence_criteria: "Terminate when grad_norm ≤ 1e-10 or relative improvement ≤ 1e-10"
+hb_grape:
+  optimizer: "Adam"
+  learning_rate: 0.02
+  beta1: 0.9
+  beta2: 0.999
+  epsilon: 1.0e-08
+  lr_decay: 1.0
+  gradient_validation: null
+  projection_to_basis: "Gradients projected with harmonic basis transposes (B^T g)"
+cma_es:
+  population_lambda: null
+  init_sigma: null
+  seed: 42
+  constraints_or_penalties: "Quadratic penalty on |Ω| pulse area beyond 4π plus objective-specific terms"
+  runtime_notes: null
+ensemble_and_robustness:
+  ensemble_rabi_scale_grid: "np.linspace(0.9, 1.1, 5)"
+  ensemble_detuning_shift_grid: "np.linspace(-0.1·max|Δ|, +0.1·max|Δ|, 5)"
+  robustness_grid_area_pi: "np.linspace(0.1, 8.0, 40)"
+  robustness_grid_detuning: "np.linspace(-140.0, 140.0, 41)"
+  metric: "log10(max(1 - fidelity, 1e-12))"
+reproducibility:
+  random_seed_global: 42
+  hardware_specs: null
+  typical_runtime_per_run: null
+  file_citations:
+    - key: "time_grid"
+      path: "notebooks/12_costfunction_types.ipynb"
+      cell_or_line: "cell 3 (lines 76-83)"
+      brief_context: "time_grid_params with duration_us=0.1, num_points=2000"
+    - key: "states"
+      path: "notebooks/12_costfunction_types.ipynb"
+      cell_or_line: "cell 3 (lines 87-90)"
+      brief_context: "rho0 and target density matrices"
+    - key: "penalties"
+      path: "notebooks/12_costfunction_types.ipynb"
+      cell_or_line: "cell 3 (lines 105-110)"
+      brief_context: "power_weight=1e-5, neg_weight=1e-8, neg_kappa=10"
+    - key: "objectives"
+      path: "notebooks/12_costfunction_types.ipynb"
+      cell_or_line: "cell 3 (lines 112-115)"
+      brief_context: "OBJECTIVES tuple"
+    - key: "optimizer"
+      path: "notebooks/12_costfunction_types.ipynb"
+      cell_or_line: "cell 3 (lines 94-101)"
+      brief_context: "max_iters, grad_tol, rtol, Adam hyperparameters"
+    - key: "heatmap_grid"
+      path: "notebooks/12_costfunction_types.ipynb"
+      cell_or_line: "cell 19-20 (lines 722-776)"
+      brief_context: "area_pi_values, detuning_shifts, log10 infidelity"
+    - key: "solver"
+      path: "src/physics.py"
+      cell_or_line: "lines 127-194"
+      brief_context: "propagate_piecewise_const analytic SU(2) propagation"
+    - key: "frequency_units"
+      path: "src/baselines/grape_coefficients.py"
+      cell_or_line: "lines 1-6"
+      brief_context: "module docstring defining microseconds and rad/us conventions"
+    - key: "pulse_shapes"
+      path: "src/baselines/grape_coefficients.py"
+      cell_or_line: "lines 302-348"
+      brief_context: "polynomial and polynomial_chirp formulas plus scaling rules"
+    - key: "gradients"
+      path: "src/cost.py"
+      cell_or_line: "lines 45-127"
+      brief_context: "adjoint-based gradient accumulation"
+    - key: "projection"
+      path: "src/optimizers/problem.py"
+      cell_or_line: "lines 96-117"
+      brief_context: "gradients projected via basis^T"
+    - key: "ensemble_defaults"
+      path: "src/optimizers/problem.py"
+      cell_or_line: "lines 204-214"
+      brief_context: "beta and detuning grid defaults"
+    - key: "cma_penalty"
+      path: "notebooks/13_optimize_baseline_from_grape.ipynb"
+      cell_or_line: "cell 4 & 6 (lines 98-109, 197-210)"
+      brief_context: "area penalty and ensemble objective"
+    - key: "cma_seed"
+      path: "notebooks/13_optimize_baseline_from_grape.ipynb"
+      cell_or_line: "cell 4 & 7 (lines 111-113, 279-288)"
+      brief_context: "SEED=42 and per-iteration CMA loop"
+    - key: "canonical_grid"
+      path: "notebooks/figures_for_results.ipynb"
+      cell_or_line: "cell 2 (lines 54-56)"
+      brief_context: "CANONICAL_DURATION=0.1, CANONICAL_POINTS=2000"
+    - key: "adiabatic_metric"
+      path: "notebooks/figures_for_results.ipynb"
+      cell_or_line: "cell 20 (lines 1442-1446)"
+      brief_context: "adiabaticity metric numerator/denominator"
+  todos:
+    - "Record installed library versions by running the HOWTO cell in RESULTS_METADATA.md"
+    - "Inspect Nevergrad CMA optimizer defaults (population λ, initial σ) in notebook 13"
