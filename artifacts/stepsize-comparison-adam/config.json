@@ -4,7 +4,7 @@
     "params": {
       "time_grid": {
         "duration_us": 0.1,
-        "num_points": 2001,
+        "num_points": 2000,
         "start_us": 0.0
       },
       "omega": {
@@ -79,12 +79,13 @@
     "max_iters": 2000,
     "grad_tol": 1e-10,
     "rtol": 1e-10,
-    "max_time_s": 300.0,
+    "max_time_s": 600.0,
     "optimize_delta": true,
-    "learning_rate": 0.05,
+    "learning_rate": 0.5,
     "beta1": 0.9,
     "beta2": 0.999,
     "epsilon": 1e-08,
+    "lr_decay": 0.999,
     "method": "adam"
   },
   "penalties": {
@@ -93,7 +94,7 @@
     "neg_kappa": 10.0
   },
   "metadata": {
-    "objective": "terminal"
+    "objective": "path"
   },
   "notes": null
 }

@@ -81,15 +81,15 @@
     "rtol": 1e-10,
     "max_time_s": 3600.0,
     "optimize_delta": true,
-    "learning_rate": 0.02,
+    "learning_rate": 0.5,
     "beta1": 0.9,
     "beta2": 0.999,
     "epsilon": 1e-08,
-    "lr_decay": 1.0,
+    "lr_decay": 0.995,
     "method": "adam"
   },
   "penalties": {
-    "power_weight": 1e-05,
+    "power_weight": 1e-08,
     "neg_weight": 1e-08,
     "neg_kappa": 10.0
   },
