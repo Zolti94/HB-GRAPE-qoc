@@ -77,8 +77,8 @@
   "random_seed": null,
   "optimizer_options": {
     "max_iters": 2000,
-    "grad_tol": 1e-10,
-    "rtol": 1e-10,
+    "grad_tol": 0.0,
+    "rtol": 0.0,
     "max_time_s": 3600.0,
     "optimize_delta": true,
     "learning_rate": 0.5,
